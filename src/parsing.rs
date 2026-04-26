@@ -2,89 +2,148 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use itertools::Itertools;
 use std::{collections::HashMap, path::Path, vec};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct QuestionnaireResponse {
-    demographics: Demographics,
-    dealbreakers: Dealbreakers,
-    corevalues: CoreValues,
-    relationshipdynamics: RelationshipDynamics,
-    lifestylemoney: LifestyleMoney,
-    selfdescription: SelfDescription,
-    partnerpreferences: PartnerPreferences,
-    socialstyle: SocialStyle,
-    interests: Interests,
-    freeresponse: FreeResponse,
+    pub demographics: Demographics,
+    pub dealbreakers: Dealbreakers,
+    pub corevalues: CoreValues,
+    pub relationshipdynamics: RelationshipDynamics,
+    pub lifestylemoney: LifestyleMoney,
+    pub selfdescription: SelfDescription,
+    pub partnerpreferences: PartnerPreferences,
+    pub socialstyle: SocialStyle,
+    pub interests: Interests,
+    pub freeresponse: FreeResponse,
 }
 
-#[derive(Clone, Debug)]
+impl QuestionnaireResponse {
+    pub fn id(&self) -> String {
+        self.demographics.email.clone()
+    }
+}
+
+#[derive(Clone, Debug, Default)]
 pub struct Demographics {
-    name: String,
-    email: String,
-    gender: Gender,
-    age: u8,
+    pub name: String,
+    pub email: String,
+    pub gender: Gender,
+    pub age: Age,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Dealbreakers {
-    wants_children: YesNoMaybeResponse,
-    marriage_timeline: MarriageTimelineResponse,
-    stay_local: YesNoMaybeResponse,
-    my_religious_commitment: u8,
-    partners_religious_commitment: PartnersReligionResponse,
+    pub wants_children: YesNoMaybeResponse,
+    pub marriage_timeline: MarriageTimelineResponse,
+    pub stay_local: YesNoMaybeResponse,
+    pub my_religious_commitment: MyReligiousCommitment,
+    pub partners_religious_commitment: PartnersReligionResponse,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct CoreValues {
-    response_and_weights: [ResponseAndWeight; 14],
+    pub response_and_weights: [ResponseAndWeight; 14],
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct RelationshipDynamics {
-    response_and_weights: [ResponseAndWeight; 8],
-    responses: [FourChoiceResponse; 3],
+    pub response_and_weights: [ResponseAndWeight; 8],
+    pub responses: [FourChoiceResponse; 3],
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct LifestyleMoney {
-    responses: [FourChoiceResponse; 8],
-    num_children: u8,
+    pub responses: [FourChoiceResponse; 8],
+    pub num_children: NumChildren,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct SelfDescription {
     /// Crossmatched against corresponding item in PartnerPreferences.crossmatched
-    crossmatched: [FourChoiceResponse; 8],
+    pub crossmatched: [FourChoiceResponse; 8],
 
     /// Direct comparison with corresponding SelfDescription.direct for partner candidate.
-    direct: [FourChoiceResponse; 7],
+    pub direct: [FourChoiceResponse; 7],
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct PartnerPreferences {
     /// Crossmatched against corresponding item in SelfDescription.crossmatched
-    crossmatched: [FourChoiceResponse; 8],
+    pub crossmatched: [FourChoiceResponse; 8],
 
     /// Direct comparison with corresponding PartnerPreferences.direct for partner candidate.
-    direct: [FourChoiceResponse; 2],
+    pub direct: [FourChoiceResponse; 2],
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct SocialStyle {
-    responses: [FourChoiceResponse; 8],
+    pub responses: [FourChoiceResponse; 8],
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Interests {
-    responses: [FourChoiceResponse; 8],
+    pub responses: [FourChoiceResponse; 8],
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct FreeResponse {
     pub responses: HashMap<String, String>,
 }
 
-#[derive(Clone, Debug)]
-pub struct FourChoiceResponse(u8);
+#[derive(Clone, Debug, Default)]
+pub struct Age(pub u8);
+
+impl Age {
+    pub fn new(string: &str) -> Result<Self> {
+        let age: u8 = string.parse().context("Unable to parse age to number")?;
+        ensure!(
+            (26..=37).contains(&age),
+            "Age {age} is not in the correct range"
+        );
+        Ok(Self(age))
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct MyReligiousCommitment(pub u8);
+
+impl MyReligiousCommitment {
+    pub fn new(string: &str) -> Result<Self> {
+        let my_religious_commitment: u8 = string
+            .parse()
+            .context("Unable to parse my religious commitment to number")?;
+        ensure!(
+            (1..=5).contains(&my_religious_commitment),
+            "My religious commitment {my_religious_commitment} is not in the correct range"
+        );
+
+        Ok(Self(my_religious_commitment))
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct NumChildren(pub u8);
+
+impl NumChildren {
+    fn new(string: &str) -> Result<Self> {
+        let num_children: u8 = string
+            .parse()
+            .context("Unable to parse num children to number")?;
+        ensure!(
+            (0..=9).contains(&num_children),
+            "Num children {num_children} is not in the correct range"
+        );
+
+        Ok(Self(num_children))
+    }
+
+    /// Score from 0 to 1.
+    fn normalized(&self) -> f32 {
+        (self.0) as f32 / 9.0
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct FourChoiceResponse(pub u8);
 
 impl FourChoiceResponse {
     fn new(string: &str) -> Result<Self> {
@@ -98,16 +157,21 @@ impl FourChoiceResponse {
 
         Ok(Self(response))
     }
+
+    /// Score from 0 to 1.
+    fn normalized(&self) -> f32 {
+        (self.0 - 1) as f32 / 3.0
+    }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct ResponseAndWeight {
-    response: FourChoiceResponse,
-    weight: FiveChoiceWeight,
+    pub response: FourChoiceResponse,
+    pub weight: FiveChoiceWeight,
 }
 
-#[derive(Clone, Debug)]
-pub struct FiveChoiceWeight(u8);
+#[derive(Clone, Debug, Default)]
+pub struct FiveChoiceWeight(pub u8);
 
 impl FiveChoiceWeight {
     fn new(string: &str) -> Result<Self> {
@@ -131,28 +195,32 @@ impl FiveChoiceWeight {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub enum Gender {
+    #[default]
     Male,
     Female,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub enum YesNoMaybeResponse {
+    #[default]
     Yes,
     No,
     Maybe,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub enum MarriageTimelineResponse {
+    #[default]
     ZeroToTwo,
     TwoToFive,
     FivePlus,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub enum PartnersReligionResponse {
+    #[default]
     Same,
     Within1Level,
     DoesNotMatter,
@@ -218,7 +286,6 @@ pub fn parse_responses<P: AsRef<Path>>(path: P) -> Result<Vec<QuestionnaireRespo
         })
     }
 
-    dbg!(&responses);
     Ok(responses)
 }
 
@@ -279,11 +346,7 @@ fn parse_demographics<'i>(
         "Unexpected header \"{}\", expected \"Age\"",
         header
     );
-    let age: u8 = field.parse().context("Unable to parse age to number")?;
-    ensure!(
-        (26..=37).contains(&age),
-        "Age {age} is not in the correct range"
-    );
+    let age = Age::new(field)?;
 
     Ok(Demographics {
         name,
@@ -358,13 +421,7 @@ fn parse_dealbreakers<'i>(
         "Unexpected header \"{}\", expected \"My religious commitment level\"",
         header
     );
-    let my_religious_commitment: u8 = field
-        .parse()
-        .context("Unable to parse my religious commitment to number")?;
-    ensure!(
-        (1..=5).contains(&my_religious_commitment),
-        "My religious commitment {my_religious_commitment} is not in the correct range"
-    );
+    let my_religious_commitment = MyReligiousCommitment::new(field)?;
 
     let (header, field) = header_and_field
         .next()
@@ -472,13 +529,7 @@ fn parse_lifestylemoney<'i>(
         header
     );
 
-    let num_children: u8 = field
-        .parse()
-        .context("Unable to parse num children to number")?;
-    ensure!(
-        (0..=9).contains(&num_children),
-        "Num children {num_children} is not in the correct range"
-    );
+    let num_children = NumChildren::new(field)?;
 
     Ok(LifestyleMoney {
         responses: responses
