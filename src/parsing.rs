@@ -80,7 +80,7 @@ pub struct Interests {
 
 #[derive(Clone, Debug)]
 pub struct FreeResponse {
-    responses: HashMap<String, String>,
+    pub responses: HashMap<String, String>,
 }
 
 #[derive(Clone, Debug)]
