@@ -1,0 +1,9 @@
+[package]
+name = "matchmaking"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+csv = "1"
+itertools = "0.14"
