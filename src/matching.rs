@@ -59,12 +59,8 @@ pub struct ShortlistMatch {
 pub fn create_matches(
     responses: Vec<QuestionnaireResponse>,
     sort_shortlists_by_score: bool,
-    rng_seed: Option<u64>,
 ) -> Result<Matches> {
-        let mut rng = match rng_seed {
-            Some(seed) => StdRng::seed_from_u64(seed),
-            None => StdRng::try_from_rng(&mut SysRng).unwrap()
-        };
+    let mut rng = rand::rng();
 
     // Score all pairs
     let pairs = build_scored_pairs(responses.clone());
@@ -423,7 +419,7 @@ fn build_scored_pairs(responses: Vec<QuestionnaireResponse>) -> HashMap<(String,
 fn assign_shortlists(
     responses: &[QuestionnaireResponse],
     pairs: HashMap<(String, String), f32>,
-    rng: &mut StdRng
+    rng: &mut ThreadRng
 ) -> HashMap<String, Vec<(String, f32)>> {
     const MAX_APPEARANCES: u8 = 12;
     let mut cap = MAX_APPEARANCES;
