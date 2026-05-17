@@ -507,7 +507,7 @@ fn next_available(
     for (other_id, score) in &ranked_candidates[pid] {
         if shortlists
             .get(pid)
-            .is_some_and(|sl| sl.iter().find(|i| &i.0 == other_id).is_some())
+            .is_some_and(|sl| sl.iter().any(|i| &i.0 == other_id))
         {
             continue;
         }

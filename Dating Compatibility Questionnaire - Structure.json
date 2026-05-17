@@ -1,0 +1,1097 @@
+// Generated using the AppScript here: https://script.google.com/home/projects/1YO6KfyhkfX4bhZpsv79FKeoKCDQKq_AqmM4-ficYYaktMaLvsNdLqNpp/edit
+
+[
+  {
+    "title": "Demographics",
+    "type": "PAGE_BREAK",
+    "id": 27422902
+  },
+  {
+    "title": "First and last name",
+    "type": "TEXT",
+    "id": 1491002565
+  },
+  {
+    "title": "Gender",
+    "type": "MULTIPLE_CHOICE",
+    "id": 1756679597,
+    "choices": [
+      "Male",
+      "Female"
+    ]
+  },
+  {
+    "title": "Age",
+    "type": "TEXT",
+    "id": 1806973690
+  },
+  {
+    "title": "Dealbreakers",
+    "type": "PAGE_BREAK",
+    "id": 1387761752
+  },
+  {
+    "title": "I want to have children",
+    "type": "MULTIPLE_CHOICE",
+    "id": 1494988107,
+    "choices": [
+      "Yes",
+      "No",
+      "Open to it"
+    ]
+  },
+  {
+    "title": "I'd like to be married within",
+    "type": "MULTIPLE_CHOICE",
+    "id": 872779170,
+    "choices": [
+      "0 - 2 years",
+      "2 - 5 years",
+      "5+ years"
+    ]
+  },
+  {
+    "title": "I intend to stay in Cache Valley long term",
+    "type": "MULTIPLE_CHOICE",
+    "id": 404871434,
+    "choices": [
+      "Yes",
+      "No",
+      "It depends"
+    ]
+  },
+  {
+    "title": "My religious commitment level",
+    "type": "SCALE",
+    "id": 25291436,
+    "bounds": {
+      "min": 1,
+      "max": 5
+    }
+  },
+  {
+    "title": "My partner's religious commitment level should be:",
+    "type": "MULTIPLE_CHOICE",
+    "id": 1777754002,
+    "choices": [
+      "the same as mine",
+      "within one level of mine",
+      "it doesn't matter"
+    ]
+  },
+  {
+    "title": "Core Values",
+    "type": "PAGE_BREAK",
+    "id": 329427046
+  },
+  {
+    "title": "Protecting feelings matters more than blunt honesty",
+    "type": "SCALE",
+    "id": 196955103,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "From the question above, how important is it that your partner feels the same way about this as you do?",
+    "type": "MULTIPLE_CHOICE",
+    "id": 1790636785,
+    "choices": [
+      "I don't care if we agree",
+      "A little",
+      "Somewhat",
+      "Very",
+      "We MUST agree on this"
+    ]
+  },
+  {
+    "title": "Social activism is important to me",
+    "type": "SCALE",
+    "id": 954009257,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "From the question above, how important is it that your partner feels the same way about this as you do?",
+    "type": "MULTIPLE_CHOICE",
+    "id": 1194416267,
+    "choices": [
+      "I don't care if we agree",
+      "A little",
+      "Somewhat",
+      "Very",
+      "We MUST agree on this"
+    ]
+  },
+  {
+    "title": "There is a place for revenge when someone wrongs you",
+    "type": "SCALE",
+    "id": 1546216888,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "From the question above, how important is it that your partner feels the same way about this as you do?",
+    "type": "MULTIPLE_CHOICE",
+    "id": 1286117276,
+    "choices": [
+      "I don't care if we agree",
+      "A little",
+      "Somewhat",
+      "Very",
+      "We MUST agree on this"
+    ]
+  },
+  {
+    "title": "Some things are simply black and white",
+    "type": "SCALE",
+    "id": 2002581521,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "From the question above, how important is it that your partner feels the same way about this as you do?",
+    "type": "MULTIPLE_CHOICE",
+    "id": 1053483862,
+    "choices": [
+      "I don't care if we agree",
+      "A little",
+      "Somewhat",
+      "Very",
+      "We MUST agree on this"
+    ]
+  },
+  {
+    "title": "The phrase \"I love you\" is a promise",
+    "type": "SCALE",
+    "id": 458778932,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "From the question above, how important is it that your partner feels the same way about this as you do?",
+    "type": "MULTIPLE_CHOICE",
+    "id": 279258979,
+    "choices": [
+      "I don't care if we agree",
+      "A little",
+      "Somewhat",
+      "Very",
+      "We MUST agree on this"
+    ]
+  },
+  {
+    "title": "I go to great lengths to minimize harm to the planet",
+    "type": "SCALE",
+    "id": 1053084165,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "From the question above, how important is it that your partner feels the same way about this as you do?",
+    "type": "MULTIPLE_CHOICE",
+    "id": 18905900,
+    "choices": [
+      "I don't care if we agree",
+      "A little",
+      "Somewhat",
+      "Very",
+      "We MUST agree on this"
+    ]
+  },
+  {
+    "title": "I would keep a gun in the house",
+    "type": "SCALE",
+    "id": 21415926,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "From the question above, how important is it that your partner feels the same way about this as you do?",
+    "type": "MULTIPLE_CHOICE",
+    "id": 171208502,
+    "choices": [
+      "I don't care if we agree",
+      "A little",
+      "Somewhat",
+      "Very",
+      "We MUST agree on this"
+    ]
+  },
+  {
+    "title": "I would end a friendship over political differences",
+    "type": "SCALE",
+    "id": 1973558910,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "From the question above, how important is it that your partner feels the same way about this as you do?",
+    "type": "MULTIPLE_CHOICE",
+    "id": 1979455521,
+    "choices": [
+      "I don't care if we agree",
+      "A little",
+      "Somewhat",
+      "Very",
+      "We MUST agree on this"
+    ]
+  },
+  {
+    "title": "No one can be truly self-made",
+    "type": "SCALE",
+    "id": 555957353,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "From the question above, how important is it that your partner feels the same way about this as you do?",
+    "type": "MULTIPLE_CHOICE",
+    "id": 316012358,
+    "choices": [
+      "I don't care if we agree",
+      "A little",
+      "Somewhat",
+      "Very",
+      "We MUST agree on this"
+    ]
+  },
+  {
+    "title": "Everyone deserves my empathy",
+    "type": "SCALE",
+    "id": 678509891,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "From the question above, how important is it that your partner feels the same way about this as you do?",
+    "type": "MULTIPLE_CHOICE",
+    "id": 1730150345,
+    "choices": [
+      "I don't care if we agree",
+      "A little",
+      "Somewhat",
+      "Very",
+      "We MUST agree on this"
+    ]
+  },
+  {
+    "title": "I would rather fail than cheat",
+    "type": "SCALE",
+    "id": 173255449,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "From the question above, how important is it that your partner feels the same way about this as you do?",
+    "type": "MULTIPLE_CHOICE",
+    "id": 46033461,
+    "choices": [
+      "I don't care if we agree",
+      "A little",
+      "Somewhat",
+      "Very",
+      "We MUST agree on this"
+    ]
+  },
+  {
+    "title": "I am the most important person in my own life",
+    "type": "SCALE",
+    "id": 124625668,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "From the question above, how important is it that your partner feels the same way about this as you do?",
+    "type": "MULTIPLE_CHOICE",
+    "id": 54643009,
+    "choices": [
+      "I don't care if we agree",
+      "A little",
+      "Somewhat",
+      "Very",
+      "We MUST agree on this"
+    ]
+  },
+  {
+    "title": "I prefer politically incorrect humor",
+    "type": "SCALE",
+    "id": 1416202892,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "From the question above, how important is it that your partner feels the same way about this as you do?",
+    "type": "MULTIPLE_CHOICE",
+    "id": 1359855062,
+    "choices": [
+      "I don't care if we agree",
+      "A little",
+      "Somewhat",
+      "Very",
+      "We MUST agree on this"
+    ]
+  },
+  {
+    "title": "Buying local over corporate matters to me",
+    "type": "SCALE",
+    "id": 877812962,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "From the question above, how important is it that your partner feels the same way about this as you do?",
+    "type": "MULTIPLE_CHOICE",
+    "id": 1971602594,
+    "choices": [
+      "I don't care if we agree",
+      "A little",
+      "Somewhat",
+      "Very",
+      "We MUST agree on this"
+    ]
+  },
+  {
+    "title": "Relationship Dynamics",
+    "type": "PAGE_BREAK",
+    "id": 1443824687
+  },
+  {
+    "title": "I say what's bothering me even if it makes my partner uncomfortable",
+    "type": "SCALE",
+    "id": 1707011355,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "From the question above, how important is it that your partner feels the same way about this as you do?",
+    "type": "MULTIPLE_CHOICE",
+    "id": 1003677461,
+    "choices": [
+      "I don't care if we agree",
+      "A little",
+      "Somewhat",
+      "Very",
+      "We MUST agree on this"
+    ]
+  },
+  {
+    "title": "I can't sleep if my partner is upset with me",
+    "type": "SCALE",
+    "id": 95638832,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "From the question above, how important is it that your partner feels the same way about this as you do?",
+    "type": "MULTIPLE_CHOICE",
+    "id": 879853758,
+    "choices": [
+      "I don't care if we agree",
+      "A little",
+      "Somewhat",
+      "Very",
+      "We MUST agree on this"
+    ]
+  },
+  {
+    "title": "My partner can be just friends with an ex",
+    "type": "SCALE",
+    "id": 163695849,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "From the question above, how important is it that your partner feels the same way about this as you do?",
+    "type": "MULTIPLE_CHOICE",
+    "id": 1196647374,
+    "choices": [
+      "I don't care if we agree",
+      "A little",
+      "Somewhat",
+      "Very",
+      "We MUST agree on this"
+    ]
+  },
+  {
+    "title": "I'd want my partner to share their location with me",
+    "type": "SCALE",
+    "id": 848882467,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "From the question above, how important is it that your partner feels the same way about this as you do?",
+    "type": "MULTIPLE_CHOICE",
+    "id": 122540727,
+    "choices": [
+      "I don't care if we agree",
+      "A little",
+      "Somewhat",
+      "Very",
+      "We MUST agree on this"
+    ]
+  },
+  {
+    "title": "My partner should enjoy spending time with my family without me",
+    "type": "SCALE",
+    "id": 709225458,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "From the question above, how important is it that your partner feels the same way about this as you do?",
+    "type": "MULTIPLE_CHOICE",
+    "id": 1877653914,
+    "choices": [
+      "I don't care if we agree",
+      "A little",
+      "Somewhat",
+      "Very",
+      "We MUST agree on this"
+    ]
+  },
+  {
+    "title": "My parents' approval of my partner matters to me",
+    "type": "SCALE",
+    "id": 1840588438,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "From the question above, how important is it that your partner feels the same way about this as you do?",
+    "type": "MULTIPLE_CHOICE",
+    "id": 877915089,
+    "choices": [
+      "I don't care if we agree",
+      "A little",
+      "Somewhat",
+      "Very",
+      "We MUST agree on this"
+    ]
+  },
+  {
+    "title": "I run major decisions by my parents",
+    "type": "SCALE",
+    "id": 1131922350,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "From the question above, how important is it that your partner feels the same way about this as you do?",
+    "type": "MULTIPLE_CHOICE",
+    "id": 239905687,
+    "choices": [
+      "I don't care if we agree",
+      "A little",
+      "Somewhat",
+      "Very",
+      "We MUST agree on this"
+    ]
+  },
+  {
+    "title": "I'd rather ghost than directly reject someone",
+    "type": "SCALE",
+    "id": 1925399356,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "From the question above, how important is it that your partner feels the same way about this as you do?",
+    "type": "MULTIPLE_CHOICE",
+    "id": 1193186006,
+    "choices": [
+      "I don't care if we agree",
+      "A little",
+      "Somewhat",
+      "Very",
+      "We MUST agree on this"
+    ]
+  },
+  {
+    "title": "I avoid burning bridges at all costs",
+    "type": "SCALE",
+    "id": 1976039172,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I check in on friends regularly",
+    "type": "SCALE",
+    "id": 1566574317,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I need friends who respond quickly to messages",
+    "type": "SCALE",
+    "id": 1522710242,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "Lifestyle & Money",
+    "type": "PAGE_BREAK",
+    "id": 919428491
+  },
+  {
+    "title": "Expensive dates are more fun",
+    "type": "SCALE",
+    "id": 176994076,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I count every penny I spend",
+    "type": "SCALE",
+    "id": 1829117630,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I like to indulge in non-essential purchases",
+    "type": "SCALE",
+    "id": 196516110,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "Financial stability matters more than chasing passion",
+    "type": "SCALE",
+    "id": 2003729004,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "It matters that I earn more than my peers",
+    "type": "SCALE",
+    "id": 1680959080,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I want an extravagant wedding",
+    "type": "SCALE",
+    "id": 1203719326,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "My kids should attend private school",
+    "type": "SCALE",
+    "id": 54131619,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I enjoy treating myself even when impractical",
+    "type": "SCALE",
+    "id": 1965507066,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I'd like to have ___ child (children)",
+    "type": "TEXT",
+    "id": 1325650425
+  },
+  {
+    "title": "Self-description",
+    "type": "PAGE_BREAK",
+    "id": 727557858
+  },
+  {
+    "title": "I tend to plan things carefully",
+    "type": "SCALE",
+    "id": 1736676436,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I have an artistic or creative side",
+    "type": "SCALE",
+    "id": 1997590777,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I am energetic and outgoing",
+    "type": "SCALE",
+    "id": 1096520815,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I am highly goal-oriented and driven",
+    "type": "SCALE",
+    "id": 301334651,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I prefer structured daily routines",
+    "type": "SCALE",
+    "id": 1169744588,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "Idle days with no plans feel",
+    "type": "SCALE",
+    "id": 1107105100,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I usually find it harder to",
+    "type": "SCALE",
+    "id": 886454247,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I have a dry sense of humor",
+    "type": "SCALE",
+    "id": 30666517,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I enjoy intellectual debate and sparring",
+    "type": "SCALE",
+    "id": 332790058,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "My profession is a defining part of who I am",
+    "type": "SCALE",
+    "id": 403109455,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "Diet and nutrition are important to me",
+    "type": "SCALE",
+    "id": 2076925172,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "Staying active and exercising matters",
+    "type": "SCALE",
+    "id": 22339480,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "Fashion and personal style matter to me",
+    "type": "SCALE",
+    "id": 1408879195,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "Sports are an important part of my identity",
+    "type": "SCALE",
+    "id": 372215893,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I'm comfortable being spontaneous over responsible",
+    "type": "SCALE",
+    "id": 1159953964,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "Partner Preferences",
+    "type": "PAGE_BREAK",
+    "id": 921318267
+  },
+  {
+    "title": "I'd prefer a partner who plans vs. goes with the flow",
+    "type": "SCALE",
+    "id": 367403609,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "An artistic or creative side in a partner matters",
+    "type": "SCALE",
+    "id": 1300853195,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I'd prefer a partner who is",
+    "type": "SCALE",
+    "id": 1813400899,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "Ambition in a partner matters to me",
+    "type": "SCALE",
+    "id": 936829701,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "A dry sense of humor in a partner matters",
+    "type": "SCALE",
+    "id": 416507833,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "An intellectually curious partner matters to me",
+    "type": "SCALE",
+    "id": 931073103,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "A health-conscious partner matters to me",
+    "type": "SCALE",
+    "id": 178037920,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "An active or fit partner matters to me",
+    "type": "SCALE",
+    "id": 823326769,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "Splitting the bill on a first date feels right",
+    "type": "SCALE",
+    "id": 1571587004,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I'm fine with my partner having celebrity crushes",
+    "type": "SCALE",
+    "id": 1488281084,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "Social Style",
+    "type": "PAGE_BREAK",
+    "id": 1259599942
+  },
+  {
+    "title": "I prefer a small close-knit friend group",
+    "type": "SCALE",
+    "id": 1087415822,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I enjoy social media and actively engage with it",
+    "type": "SCALE",
+    "id": 1347805797,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I love planning and hosting gatherings",
+    "type": "SCALE",
+    "id": 258270496,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I value deep conversations over casual small talk",
+    "type": "SCALE",
+    "id": 1452201802,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I enjoy playful teasing with friends",
+    "type": "SCALE",
+    "id": 341661300,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I'm comfortable with friends who hold different beliefs",
+    "type": "SCALE",
+    "id": 269980801,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I enjoy group activities (sports, games, trivia)",
+    "type": "SCALE",
+    "id": 1724641479,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I prefer cozy nights in over going out",
+    "type": "SCALE",
+    "id": 1279182830,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "Interests",
+    "type": "PAGE_BREAK",
+    "id": 1971105986
+  },
+  {
+    "title": "I enjoy philosophy, science, or psychology discussions",
+    "type": "SCALE",
+    "id": 787838326,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I follow pop culture, TV, and movies",
+    "type": "SCALE",
+    "id": 726842826,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I enjoy concerts, festivals, and live events",
+    "type": "SCALE",
+    "id": 2044766841,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I enjoy thrill-seeking (skydiving, roller coasters)",
+    "type": "SCALE",
+    "id": 496474307,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I could spend hours lost in a book or creative project",
+    "type": "SCALE",
+    "id": 1246811570,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I enjoy dark humor and sarcasm",
+    "type": "SCALE",
+    "id": 315670085,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I love trying exotic or unusual foods",
+    "type": "SCALE",
+    "id": 647172959,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "I enjoy discussing current events",
+    "type": "SCALE",
+    "id": 1305091070,
+    "bounds": {
+      "min": 1,
+      "max": 4
+    }
+  },
+  {
+    "title": "Free-response",
+    "type": "PAGE_BREAK",
+    "id": 2069445761
+  },
+  {
+    "title": "Unpopular opinion I stand by:",
+    "type": "TEXT",
+    "id": 836117479
+  },
+  {
+    "title": "Something I've changed my mind about recently:",
+    "type": "TEXT",
+    "id": 208315385
+  },
+  {
+    "title": "I could give a 10-minute talk on:",
+    "type": "TEXT",
+    "id": 1267983997
+  },
+  {
+    "title": "Ideal low-effort hangout:",
+    "type": "TEXT",
+    "id": 1622865310
+  },
+  {
+    "title": "My weekend usually looks like:",
+    "type": "TEXT",
+    "id": 994185110
+  },
+  {
+    "title": "Niche interest most people don't know I have:",
+    "type": "TEXT",
+    "id": 54102072
+  },
+  {
+    "title": "Something I'm better at than I let on:",
+    "type": "TEXT",
+    "id": 1703256538
+  },
+  {
+    "title": "The thing I find most attractive in a person:",
+    "type": "TEXT",
+    "id": 989653625
+  }
+]

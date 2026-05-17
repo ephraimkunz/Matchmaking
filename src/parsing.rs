@@ -2,7 +2,7 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use itertools::Itertools;
 use std::{collections::HashMap, vec};
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct QuestionnaireResponse {
     pub demographics: Demographics,
     pub dealbreakers: Dealbreakers,
@@ -22,7 +22,7 @@ impl QuestionnaireResponse {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Demographics {
     pub name: String,
     pub email: String,
@@ -30,7 +30,7 @@ pub struct Demographics {
     pub age: Age,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Dealbreakers {
     pub wants_children: YesNoMaybeResponse,
     pub marriage_timeline: MarriageTimelineResponse,
@@ -39,24 +39,24 @@ pub struct Dealbreakers {
     pub partners_religious_commitment: PartnersReligionResponse,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct CoreValues {
     pub response_and_weights: [ResponseAndWeight; 14],
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct RelationshipDynamics {
     pub response_and_weights: [ResponseAndWeight; 8],
     pub responses: [FourChoiceResponse; 3],
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct LifestyleMoney {
     pub responses: [FourChoiceResponse; 8],
     pub num_children: NumChildren,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct SelfDescription {
     /// Crossmatched against corresponding item in PartnerPreferences.crossmatched
     pub crossmatched: [FourChoiceResponse; 8],
@@ -65,7 +65,7 @@ pub struct SelfDescription {
     pub direct: [FourChoiceResponse; 7],
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct PartnerPreferences {
     /// Crossmatched against corresponding item in SelfDescription.crossmatched
     pub crossmatched: [FourChoiceResponse; 8],
@@ -74,12 +74,12 @@ pub struct PartnerPreferences {
     pub direct: [FourChoiceResponse; 2],
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct SocialStyle {
     pub responses: [FourChoiceResponse; 8],
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Interests {
     pub responses: [FourChoiceResponse; 8],
 }
@@ -89,7 +89,7 @@ pub struct FreeResponse {
     pub responses: HashMap<String, String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Age(pub u8);
 
 impl Age {
@@ -112,7 +112,7 @@ impl Default for Age {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MyReligiousCommitment(pub u8);
 
 impl MyReligiousCommitment {
@@ -135,7 +135,7 @@ impl Default for MyReligiousCommitment {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct NumChildren(pub u8);
 
 impl NumChildren {
@@ -157,13 +157,7 @@ impl NumChildren {
     }
 }
 
-impl Default for NumChildren {
-    fn default() -> Self {
-        Self(0)
-    }
-}
-
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct FourChoiceResponse(pub u8);
 
 impl FourChoiceResponse {
@@ -191,13 +185,13 @@ impl Default for FourChoiceResponse {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct ResponseAndWeight {
     pub response: FourChoiceResponse,
     pub weight: FiveChoiceWeight,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct FiveChoiceWeight(pub u8);
 
 impl FiveChoiceWeight {
@@ -233,20 +227,14 @@ impl FiveChoiceWeight {
     }
 }
 
-impl Default for FiveChoiceWeight {
-    fn default() -> Self {
-        Self(0)
-    }
-}
-
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub enum Gender {
     #[default]
     Male,
     Female,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub enum YesNoMaybeResponse {
     #[default]
     Yes,
@@ -254,7 +242,7 @@ pub enum YesNoMaybeResponse {
     Maybe,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub enum MarriageTimelineResponse {
     #[default]
     ZeroToTwo,
@@ -262,7 +250,7 @@ pub enum MarriageTimelineResponse {
     FivePlus,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub enum PartnersReligionResponse {
     #[default]
     Same,
@@ -708,6 +696,8 @@ fn parse_freeresponse<'i>(
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use super::*;
 
     #[test]
@@ -742,10 +732,238 @@ mod tests {
 
     #[test]
     fn weight_normalization() {
-        assert!(FiveChoiceWeight(0).normalized() == 0.25);
-        assert!(FiveChoiceWeight(1).normalized() == 0.6875);
-        assert!(FiveChoiceWeight(2).normalized() == 1.125);
-        assert!(FiveChoiceWeight(3).normalized() == 1.5625);
-        assert!(FiveChoiceWeight(4).normalized() == 2.0);
+        assert_eq!(FiveChoiceWeight(0).normalized(), 0.25);
+        assert_eq!(FiveChoiceWeight(1).normalized(), 0.6875);
+        assert_eq!(FiveChoiceWeight(2).normalized(), 1.125);
+        assert_eq!(FiveChoiceWeight(3).normalized(), 1.5625);
+        assert_eq!(FiveChoiceWeight(4).normalized(), 2.0);
+    }
+
+    #[test]
+    fn parse_single_result() {
+        let mut reader = csv::Reader::from_path(Path::new("single_real.csv")).unwrap();
+        let result = parse_responses(&mut reader);
+        assert_eq!(
+            result.unwrap(),
+            vec![QuestionnaireResponse {
+                demographics: Demographics {
+                    name: "Ephraim kunz".to_string(),
+                    email: "ephraimkunz@me.com".to_string(),
+                    gender: Gender::Male,
+                    age: Age(37)
+                },
+                dealbreakers: Dealbreakers {
+                    wants_children: YesNoMaybeResponse::No,
+                    marriage_timeline: MarriageTimelineResponse::TwoToFive,
+                    stay_local: YesNoMaybeResponse::No,
+                    my_religious_commitment: MyReligiousCommitment(1),
+                    partners_religious_commitment: PartnersReligionResponse::Same
+                },
+                corevalues: CoreValues {
+                    response_and_weights: [
+                        ResponseAndWeight {
+                            response: FourChoiceResponse(1),
+                            weight: FiveChoiceWeight(0)
+                        },
+                        ResponseAndWeight {
+                            response: FourChoiceResponse(1),
+                            weight: FiveChoiceWeight(0)
+                        },
+                        ResponseAndWeight {
+                            response: FourChoiceResponse(1),
+                            weight: FiveChoiceWeight(0)
+                        },
+                        ResponseAndWeight {
+                            response: FourChoiceResponse(1),
+                            weight: FiveChoiceWeight(0)
+                        },
+                        ResponseAndWeight {
+                            response: FourChoiceResponse(1),
+                            weight: FiveChoiceWeight(0)
+                        },
+                        ResponseAndWeight {
+                            response: FourChoiceResponse(1),
+                            weight: FiveChoiceWeight(0)
+                        },
+                        ResponseAndWeight {
+                            response: FourChoiceResponse(1),
+                            weight: FiveChoiceWeight(0)
+                        },
+                        ResponseAndWeight {
+                            response: FourChoiceResponse(1),
+                            weight: FiveChoiceWeight(0)
+                        },
+                        ResponseAndWeight {
+                            response: FourChoiceResponse(1),
+                            weight: FiveChoiceWeight(0)
+                        },
+                        ResponseAndWeight {
+                            response: FourChoiceResponse(1),
+                            weight: FiveChoiceWeight(0)
+                        },
+                        ResponseAndWeight {
+                            response: FourChoiceResponse(1),
+                            weight: FiveChoiceWeight(0)
+                        },
+                        ResponseAndWeight {
+                            response: FourChoiceResponse(1),
+                            weight: FiveChoiceWeight(0)
+                        },
+                        ResponseAndWeight {
+                            response: FourChoiceResponse(1),
+                            weight: FiveChoiceWeight(0)
+                        },
+                        ResponseAndWeight {
+                            response: FourChoiceResponse(1),
+                            weight: FiveChoiceWeight(0)
+                        }
+                    ]
+                },
+                relationshipdynamics: RelationshipDynamics {
+                    response_and_weights: [
+                        ResponseAndWeight {
+                            response: FourChoiceResponse(1),
+                            weight: FiveChoiceWeight(0)
+                        },
+                        ResponseAndWeight {
+                            response: FourChoiceResponse(1),
+                            weight: FiveChoiceWeight(0)
+                        },
+                        ResponseAndWeight {
+                            response: FourChoiceResponse(1),
+                            weight: FiveChoiceWeight(0)
+                        },
+                        ResponseAndWeight {
+                            response: FourChoiceResponse(1),
+                            weight: FiveChoiceWeight(0)
+                        },
+                        ResponseAndWeight {
+                            response: FourChoiceResponse(1),
+                            weight: FiveChoiceWeight(0)
+                        },
+                        ResponseAndWeight {
+                            response: FourChoiceResponse(1),
+                            weight: FiveChoiceWeight(0)
+                        },
+                        ResponseAndWeight {
+                            response: FourChoiceResponse(1),
+                            weight: FiveChoiceWeight(0)
+                        },
+                        ResponseAndWeight {
+                            response: FourChoiceResponse(1),
+                            weight: FiveChoiceWeight(0)
+                        }
+                    ],
+                    responses: [
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1)
+                    ]
+                },
+                lifestylemoney: LifestyleMoney {
+                    responses: [
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(4),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1)
+                    ],
+                    num_children: NumChildren(0)
+                },
+                selfdescription: SelfDescription {
+                    crossmatched: [
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1)
+                    ],
+                    direct: [
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1)
+                    ]
+                },
+                partnerpreferences: PartnerPreferences {
+                    crossmatched: [
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1)
+                    ],
+                    direct: [FourChoiceResponse(1), FourChoiceResponse(1)]
+                },
+                socialstyle: SocialStyle {
+                    responses: [
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1)
+                    ]
+                },
+                interests: Interests {
+                    responses: [
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1)
+                    ]
+                },
+                freeresponse: FreeResponse {
+                    responses: HashMap::from([
+                        (
+                            "Niche interest most people don't know I have:".to_string(),
+                            "qwewefwef".to_string()
+                        ),
+                        (
+                            "Something I've changed my mind about recently:".to_string(),
+                            "hjkhjkhj".to_string()
+                        ),
+                        (
+                            "Something I'm better at than I let on:".to_string(),
+                            "dfgfdgdfg".to_string()
+                        ),
+                        (
+                            "I could give a 10-minute talk on:".to_string(),
+                            "ewfwef".to_string()
+                        ),
+                        (
+                            "The thing I find most attractive in a person:".to_string(),
+                            "jkkjy".to_string()
+                        ),
+                        (
+                            "Unpopular opinion I stand by:".to_string(),
+                            "rgerg".to_string()
+                        ),
+                        (
+                            "My weekend usually looks like:".to_string(),
+                            "dfhfdh".to_string()
+                        )
+                    ])
+                }
+            }]
+        );
     }
 }

@@ -3,7 +3,7 @@ mod parsing;
 
 use anyhow::Result;
 
-const RESPONSE_FILE_NAME: &str = "responses.csv";
+const RESPONSE_FILE_NAME: &str = "many_generated.csv";
 
 fn main() -> Result<()> {
     let mut reader = csv::Reader::from_path(RESPONSE_FILE_NAME)?;
