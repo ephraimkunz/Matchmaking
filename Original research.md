@@ -19,106 +19,202 @@ It’s impractical to have everyone in the ward rank everyone else. So, it seems
 From this we see that the problem isn’t algorithmic (stable matching problem), but is about clustering together compatible individuals and generating high-quality shortlists.
 
 Items to keep in mind:
-Length of questionnaire - 60 - 90 questions seems best
-Allow users to weight certain questions, but not all to avoid fatigue. Similar to OKCupid importance weighting that user picks (1-5) (“importance weighting works best when applied selectively to high-signal questions” ““How important is it that your partner agrees with you?”” (irrelevant, a little important, somewhat important, very important, mandatory)
+* Length of questionnaire - 60 - 90 questions seems best
+* Allow users to weight certain questions, but not all to avoid fatigue. Similar to OKCupid importance weighting that user picks (1-5) (“importance weighting works best when applied selectively to high-signal questions” ““How important is it that your partner agrees with you?”” (irrelevant, a little important, somewhat important, very important, mandatory)
 
 ## Marriage pact questions (gathered from Reddit):
 
 Expensive dates would be more fun
+
 If you do nothing for an entire day, how do you feel?
+
 I would go on a spontaneous trip, even if that meant putting off my responsibilities
+
 It is more important to protect someone's feelings than to tell the truth
+
 I keep some “friends” because they might be useful to me in the future
+
 I want a family with ____ children
+
 Social activism is important to me
+
 I would consider my friends quiet
+
 Would you rather be left at the altar or leave someone at the altar?
+
 People in positions of authority are usually right
+
 I prefer politically incorrect humor
+
 There is a place for revenge when someone has wronged me
+
 I always vote
+
 I say what is bothering me, even if it makes my partner uncomfortable
+
 Some things are simply black and white
+
 The phrase "I love you" is a promise
+
 I'd rather surround myself with people who are... (simple or complex)
+
 My partner can be "just friends" with an ex
+
 I can't go to sleep if my partner is upset with me
+
 I go to great lengths to minimize my harm to the planet
+
 Everything will eventually be explained by science
+
 I would want my partner to share their location with me
+
 I would keep a gun in the house
+
 It's important that I make more money than my peers
+
 I would end a friendship over differing political views
+
 I like to play games that involve disclosing intimate thoughts & feelings
+
 If there were a red light, but no one was on the road, I would go
+
 Are you smarter than most people at church?
+
 I do whatever it takes to get ahead
+
 I would be okay if I spent my life doing good for others, but did not receive recognition for it
+
 My friends often come to me for advice on their problems
+
 I would never stalk my partner’s social media activity
+
 I want to have an extravagant wedding
+
 My partner should enjoy hanging out with my family, even when i’m not there
+
 My kids should attend private school
+
 No one can be truly self-made
+
 It’s okay to speak badly of other people.. as long as they don’t find out
+
 I always try to sound eloquent even in non-academic conversations
+
 It is ok for my partner to have extreme crushes on celebrities
+
 i am the definition of the life of the party 
+
 its best to split the bill on the first date 
+
 when someone vents to me, i first offer (emotions 1, advice 7) 
+
 everyone deserves my empathy 
+
 i count every penny i spend 
+
 i have told someone i love them even if i didn't mean it 
+
 AI is a net good for society 
+
 its important my partner has an artistic side 
+
 i usually find it harder to (chill out 1 or get hyped up 7) 
+
 i have a dry sense of humor 
-id rather have a partner who (meticulously plans 1, goes with the flow 7) 
+
+id rather have a partner who (meticulously plans 1, goes with the flow 7)
+
 i consider myself to be an adult 
+
 its important my parents approve of my partner 
+
 id rather ghost somebody than outright reject them 
+
 the world needs (more realism 1, more imagination 7) 
+
+
 i avoid burning bridges at all cost 
+
 i run most major decisions by my parents 
+
 billionares should not exist 
+
 i would rather fail than cheat on an exam 
+
 im the most important person in my life 
+
 I believe gossiping about others is harmless fun.
+
 Expressing myself through fashion or style is important to me.
+
 My profession is a defining part of who I am.
+
 Watching or playing sports is an important part of my identity.
+
 I pay close attention to my diet and nutrition.
+
 Staying active and exercising is important to me.
+
 I enjoy lazy days with no plans or responsibilities.
+
 I prefer having a structured daily routine.
+
 I like to indulge in non-essential purchases.
+
 I enjoy treating myself, even if it’s impractical.
+
 I am highly goal-oriented in my studies or career.
+
 I like making long-term plans for my future.
+
 I prioritize work-life balance over professional ambition.
+
 Financial stability is more important to me than chasing passion projects.
+
 I prefer a small, close-knit group of friends over a large social circle.
+
 I enjoy social media and actively engage with it.
+
 I love planning and hosting gatherings or parties.
+
 I value deep, meaningful conversations over casual small talk.
+
 I enjoy playful teasing and harmless pranks with my friends.
+
 I often check in on my friends to see how they’re doing.
+
 I’m comfortable with my friends having different opinions and beliefs.
+
 I feel one should choose to buy from local businesses over large corporations.
+
 I’m a night owl.
+
 I need friends who respond quickly to messages.
+
 I’m uncomfortable with excessive physical affection (hugging, etc.).
+
 I love celebrating birthdays and important milestones with friends.
+
 I prefer cozy nights in over going out and socializing.
+
 I enjoy discussing deep topics like philosophy, science, or psychology.
+
 I like participating in group activities like sports, board games, or trivia.
+
 I enjoy dark humor and sarcasm.
+
 I’d rather blend in than stand out in a group.
+
 I’m always excited to try exotic and unusual foods.
+
 I enjoy following and discussing pop culture, TV shows, and movies.
+
 I love going to concerts, festivals, or other live events with friends.
+
 I find thrill-seeking activities (e.g., skydiving, roller coasters) exciting.
+
 I could spend hours getting lost in a book or creative project.
+
 
 
 ## Matchmaking System — Final Design v4
