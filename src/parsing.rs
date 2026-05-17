@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use itertools::Itertools;
-use std::{collections::HashMap, path::Path, vec};
+use std::{collections::HashMap, vec};
 
 #[derive(Clone, Debug, Default)]
 pub struct QuestionnaireResponse {
@@ -84,26 +84,35 @@ pub struct Interests {
     pub responses: [FourChoiceResponse; 8],
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct FreeResponse {
     pub responses: HashMap<String, String>,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct Age(pub u8);
 
 impl Age {
     pub fn new(string: &str) -> Result<Self> {
         let age: u8 = string.parse().context("Unable to parse age to number")?;
         ensure!(
-            (26..=37).contains(&age),
+            (Self::MIN_AGE..=Self::MAX_AGE).contains(&age),
             "Age {age} is not in the correct range"
         );
         Ok(Self(age))
     }
+
+    pub const MIN_AGE: u8 = 26;
+    pub const MAX_AGE: u8 = 37;
 }
 
-#[derive(Clone, Debug, Default)]
+impl Default for Age {
+    fn default() -> Self {
+        Self(26)
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct MyReligiousCommitment(pub u8);
 
 impl MyReligiousCommitment {
@@ -120,7 +129,13 @@ impl MyReligiousCommitment {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+impl Default for MyReligiousCommitment {
+    fn default() -> Self {
+        Self(1)
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct NumChildren(pub u8);
 
 impl NumChildren {
@@ -137,12 +152,18 @@ impl NumChildren {
     }
 
     /// Score from 0 to 1.
-    fn normalized(&self) -> f32 {
+    pub fn normalized(&self) -> f32 {
         (self.0) as f32 / 9.0
     }
 }
 
-#[derive(Clone, Debug, Default)]
+impl Default for NumChildren {
+    fn default() -> Self {
+        Self(0)
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct FourChoiceResponse(pub u8);
 
 impl FourChoiceResponse {
@@ -159,8 +180,14 @@ impl FourChoiceResponse {
     }
 
     /// Score from 0 to 1.
-    fn normalized(&self) -> f32 {
+    pub fn normalized(&self) -> f32 {
         (self.0 - 1) as f32 / 3.0
+    }
+}
+
+impl Default for FourChoiceResponse {
+    fn default() -> Self {
+        Self(1)
     }
 }
 
@@ -170,7 +197,7 @@ pub struct ResponseAndWeight {
     pub weight: FiveChoiceWeight,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct FiveChoiceWeight(pub u8);
 
 impl FiveChoiceWeight {
@@ -192,6 +219,23 @@ impl FiveChoiceWeight {
         );
 
         Ok(Self(weight))
+    }
+
+    const MAX_WEIGHT: u8 = 4;
+    const MIN_NORMALIZED: f32 = 0.25;
+    const MAX_NORMALIZED: f32 = 2.0;
+
+    /// Take the 0, 1, 2, 3, or 4 discrete response and map it to MIN_NORMALIZED - MAX_NORMALIZED
+    pub fn normalized(&self) -> f32 {
+        Self::MIN_NORMALIZED
+            + self.0 as f32 / Self::MAX_WEIGHT as f32
+                * (Self::MAX_NORMALIZED - Self::MIN_NORMALIZED)
+    }
+}
+
+impl Default for FiveChoiceWeight {
+    fn default() -> Self {
+        Self(0)
     }
 }
 
@@ -226,8 +270,9 @@ pub enum PartnersReligionResponse {
     DoesNotMatter,
 }
 
-pub fn parse_responses<P: AsRef<Path>>(path: P) -> Result<Vec<QuestionnaireResponse>> {
-    let mut reader = csv::Reader::from_path(path)?;
+pub fn parse_responses<R: std::io::Read>(
+    reader: &mut csv::Reader<R>,
+) -> Result<Vec<QuestionnaireResponse>> {
     let headers = reader.headers().context("Invalid csv header")?.clone();
     let mut responses = vec![];
 
@@ -658,7 +703,49 @@ fn parse_freeresponse<'i>(
         })
         .collect::<HashMap<String, String>>();
 
-    Ok(FreeResponse {
-        responses: responses,
-    })
+    Ok(FreeResponse { responses })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn basic_parse() {
+        let data = r#"Timestamp,Email Address,First and last name,Gender,Age,I want to have children,I'd like to be married within,I intend to stay in Cache Valley long term,My religious commitment level,My partner's religious commitment level should be:,Protecting feelings matters more than blunt honesty,"From the question above, how important is it that your partner feels the same way about this as you do?",Social activism is important to me,"From the question above, how important is it that your partner feels the same way about this as you do?",There is a place for revenge when someone wrongs you,"From the question above, how important is it that your partner feels the same way about this as you do?",Some things are simply black and white,"From the question above, how important is it that your partner feels the same way about this as you do?","The phrase ""I love you"" is a promise","From the question above, how important is it that your partner feels the same way about this as you do?",I go to great lengths to minimize harm to the planet,"From the question above, how important is it that your partner feels the same way about this as you do?",I would keep a gun in the house,"From the question above, how important is it that your partner feels the same way about this as you do?",I would end a friendship over political differences,"From the question above, how important is it that your partner feels the same way about this as you do?",No one can be truly self-made,"From the question above, how important is it that your partner feels the same way about this as you do?",Everyone deserves my empathy,"From the question above, how important is it that your partner feels the same way about this as you do?",I would rather fail than cheat,"From the question above, how important is it that your partner feels the same way about this as you do?",I am the most important person in my own life,"From the question above, how important is it that your partner feels the same way about this as you do?",I prefer politically incorrect humor,"From the question above, how important is it that your partner feels the same way about this as you do?",Buying local over corporate matters to me,"From the question above, how important is it that your partner feels the same way about this as you do?",I say what's bothering me even if it makes my partner uncomfortable,"From the question above, how important is it that your partner feels the same way about this as you do?",I can't sleep if my partner is upset with me,"From the question above, how important is it that your partner feels the same way about this as you do?",My partner can be just friends with an ex,"From the question above, how important is it that your partner feels the same way about this as you do?",I'd want my partner to share their location with me,"From the question above, how important is it that your partner feels the same way about this as you do?",My partner should enjoy spending time with my family without me,"From the question above, how important is it that your partner feels the same way about this as you do?",My parents' approval of my partner matters to me,"From the question above, how important is it that your partner feels the same way about this as you do?",I run major decisions by my parents,"From the question above, how important is it that your partner feels the same way about this as you do?",I'd rather ghost than directly reject someone,"From the question above, how important is it that your partner feels the same way about this as you do?",I avoid burning bridges at all costs,I check in on friends regularly,I need friends who respond quickly to messages,Expensive dates are more fun,I count every penny I spend,I like to indulge in non-essential purchases,Financial stability matters more than chasing passion,It matters that I earn more than my peers,I want an extravagant wedding,My kids should attend private school,I enjoy treating myself even when impractical,I'd like to have ___ child (children),I tend to plan things carefully,I have an artistic or creative side,I am energetic and outgoing,I am highly goal-oriented and driven,I prefer structured daily routines,Idle days with no plans feel,I usually find it harder to,I have a dry sense of humor,I enjoy intellectual debate and sparring,My profession is a defining part of who I am,Diet and nutrition are important to me,Staying active and exercising matters,Fashion and personal style matter to me,Sports are an important part of my identity,I'm comfortable being spontaneous over responsible,I'd prefer a partner who plans vs. goes with the flow,An artistic or creative side in a partner matters,I'd prefer a partner who is,Ambition in a partner matters to me,A dry sense of humor in a partner matters,An intellectually curious partner matters to me,A health-conscious partner matters to me,An active or fit partner matters to me,Splitting the bill on a first date feels right,I'm fine with my partner having celebrity crushes,I prefer a small close-knit friend group,I enjoy social media and actively engage with it,I love planning and hosting gatherings,I value deep conversations over casual small talk,I enjoy playful teasing with friends,I'm comfortable with friends who hold different beliefs,"I enjoy group activities (sports, games, trivia)",I prefer cozy nights in over going out,"I enjoy philosophy, science, or psychology discussions","I follow pop culture, TV, and movies","I enjoy concerts, festivals, and live events","I enjoy thrill-seeking (skydiving, roller coasters)",I could spend hours lost in a book or creative project,I enjoy dark humor and sarcasm,I love trying exotic or unusual foods,I enjoy discussing current events,Unpopular opinion I stand by:,Something I've changed my mind about recently:,I could give a 10-minute talk on:,Ideal low-effort hangout:,My weekend usually looks like:,Niche interest most people don't know I have:,Something I'm better at than I let on:,The thing I find most attractive in a person:
+           4/11/2026 22:43:04,ephraimkunz@me.com,Ephraim kunz,Male,37,No,2 - 5 years,No,1,the same as mine,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,1,1,1,1,1,1,1,4,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,rgerg,hjkhjkhj,ewfwef,,dfhfdh,qwewefwef,dfgfdgdfg,jkkjy"#;
+
+        let mut reader = csv::Reader::from_reader(data.as_bytes());
+        let result = parse_responses(&mut reader).unwrap();
+        assert!(result.len() == 1);
+    }
+
+    #[test]
+    fn too_many_columns() {
+        let data = r#"yellow,Timestamp,Email Address,First and last name,Gender,Age,I want to have children,I'd like to be married within,I intend to stay in Cache Valley long term,My religious commitment level,My partner's religious commitment level should be:,Protecting feelings matters more than blunt honesty,"From the question above, how important is it that your partner feels the same way about this as you do?",Social activism is important to me,"From the question above, how important is it that your partner feels the same way about this as you do?",There is a place for revenge when someone wrongs you,"From the question above, how important is it that your partner feels the same way about this as you do?",Some things are simply black and white,"From the question above, how important is it that your partner feels the same way about this as you do?","The phrase ""I love you"" is a promise","From the question above, how important is it that your partner feels the same way about this as you do?",I go to great lengths to minimize harm to the planet,"From the question above, how important is it that your partner feels the same way about this as you do?",I would keep a gun in the house,"From the question above, how important is it that your partner feels the same way about this as you do?",I would end a friendship over political differences,"From the question above, how important is it that your partner feels the same way about this as you do?",No one can be truly self-made,"From the question above, how important is it that your partner feels the same way about this as you do?",Everyone deserves my empathy,"From the question above, how important is it that your partner feels the same way about this as you do?",I would rather fail than cheat,"From the question above, how important is it that your partner feels the same way about this as you do?",I am the most important person in my own life,"From the question above, how important is it that your partner feels the same way about this as you do?",I prefer politically incorrect humor,"From the question above, how important is it that your partner feels the same way about this as you do?",Buying local over corporate matters to me,"From the question above, how important is it that your partner feels the same way about this as you do?",I say what's bothering me even if it makes my partner uncomfortable,"From the question above, how important is it that your partner feels the same way about this as you do?",I can't sleep if my partner is upset with me,"From the question above, how important is it that your partner feels the same way about this as you do?",My partner can be just friends with an ex,"From the question above, how important is it that your partner feels the same way about this as you do?",I'd want my partner to share their location with me,"From the question above, how important is it that your partner feels the same way about this as you do?",My partner should enjoy spending time with my family without me,"From the question above, how important is it that your partner feels the same way about this as you do?",My parents' approval of my partner matters to me,"From the question above, how important is it that your partner feels the same way about this as you do?",I run major decisions by my parents,"From the question above, how important is it that your partner feels the same way about this as you do?",I'd rather ghost than directly reject someone,"From the question above, how important is it that your partner feels the same way about this as you do?",I avoid burning bridges at all costs,I check in on friends regularly,I need friends who respond quickly to messages,Expensive dates are more fun,I count every penny I spend,I like to indulge in non-essential purchases,Financial stability matters more than chasing passion,It matters that I earn more than my peers,I want an extravagant wedding,My kids should attend private school,I enjoy treating myself even when impractical,I'd like to have ___ child (children),I tend to plan things carefully,I have an artistic or creative side,I am energetic and outgoing,I am highly goal-oriented and driven,I prefer structured daily routines,Idle days with no plans feel,I usually find it harder to,I have a dry sense of humor,I enjoy intellectual debate and sparring,My profession is a defining part of who I am,Diet and nutrition are important to me,Staying active and exercising matters,Fashion and personal style matter to me,Sports are an important part of my identity,I'm comfortable being spontaneous over responsible,I'd prefer a partner who plans vs. goes with the flow,An artistic or creative side in a partner matters,I'd prefer a partner who is,Ambition in a partner matters to me,A dry sense of humor in a partner matters,An intellectually curious partner matters to me,A health-conscious partner matters to me,An active or fit partner matters to me,Splitting the bill on a first date feels right,I'm fine with my partner having celebrity crushes,I prefer a small close-knit friend group,I enjoy social media and actively engage with it,I love planning and hosting gatherings,I value deep conversations over casual small talk,I enjoy playful teasing with friends,I'm comfortable with friends who hold different beliefs,"I enjoy group activities (sports, games, trivia)",I prefer cozy nights in over going out,"I enjoy philosophy, science, or psychology discussions","I follow pop culture, TV, and movies","I enjoy concerts, festivals, and live events","I enjoy thrill-seeking (skydiving, roller coasters)",I could spend hours lost in a book or creative project,I enjoy dark humor and sarcasm,I love trying exotic or unusual foods,I enjoy discussing current events,Unpopular opinion I stand by:,Something I've changed my mind about recently:,I could give a 10-minute talk on:,Ideal low-effort hangout:,My weekend usually looks like:,Niche interest most people don't know I have:,Something I'm better at than I let on:,The thing I find most attractive in a person:
+           hi,4/11/2026 22:43:04,ephraimkunz@me.com,Ephraim kunz,Male,37,No,2 - 5 years,No,1,the same as mine,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,1,1,1,1,1,1,1,4,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,rgerg,hjkhjkhj,ewfwef,,dfhfdh,qwewefwef,dfgfdgdfg,jkkjy"#;
+
+        let mut reader = csv::Reader::from_reader(data.as_bytes());
+        let result = parse_responses(&mut reader);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn not_enough_columns() {
+        let data = r#"Email Address,First and last name,Gender,Age,I want to have children,I'd like to be married within,I intend to stay in Cache Valley long term,My religious commitment level,My partner's religious commitment level should be:,Protecting feelings matters more than blunt honesty,"From the question above, how important is it that your partner feels the same way about this as you do?",Social activism is important to me,"From the question above, how important is it that your partner feels the same way about this as you do?",There is a place for revenge when someone wrongs you,"From the question above, how important is it that your partner feels the same way about this as you do?",Some things are simply black and white,"From the question above, how important is it that your partner feels the same way about this as you do?","The phrase ""I love you"" is a promise","From the question above, how important is it that your partner feels the same way about this as you do?",I go to great lengths to minimize harm to the planet,"From the question above, how important is it that your partner feels the same way about this as you do?",I would keep a gun in the house,"From the question above, how important is it that your partner feels the same way about this as you do?",I would end a friendship over political differences,"From the question above, how important is it that your partner feels the same way about this as you do?",No one can be truly self-made,"From the question above, how important is it that your partner feels the same way about this as you do?",Everyone deserves my empathy,"From the question above, how important is it that your partner feels the same way about this as you do?",I would rather fail than cheat,"From the question above, how important is it that your partner feels the same way about this as you do?",I am the most important person in my own life,"From the question above, how important is it that your partner feels the same way about this as you do?",I prefer politically incorrect humor,"From the question above, how important is it that your partner feels the same way about this as you do?",Buying local over corporate matters to me,"From the question above, how important is it that your partner feels the same way about this as you do?",I say what's bothering me even if it makes my partner uncomfortable,"From the question above, how important is it that your partner feels the same way about this as you do?",I can't sleep if my partner is upset with me,"From the question above, how important is it that your partner feels the same way about this as you do?",My partner can be just friends with an ex,"From the question above, how important is it that your partner feels the same way about this as you do?",I'd want my partner to share their location with me,"From the question above, how important is it that your partner feels the same way about this as you do?",My partner should enjoy spending time with my family without me,"From the question above, how important is it that your partner feels the same way about this as you do?",My parents' approval of my partner matters to me,"From the question above, how important is it that your partner feels the same way about this as you do?",I run major decisions by my parents,"From the question above, how important is it that your partner feels the same way about this as you do?",I'd rather ghost than directly reject someone,"From the question above, how important is it that your partner feels the same way about this as you do?",I avoid burning bridges at all costs,I check in on friends regularly,I need friends who respond quickly to messages,Expensive dates are more fun,I count every penny I spend,I like to indulge in non-essential purchases,Financial stability matters more than chasing passion,It matters that I earn more than my peers,I want an extravagant wedding,My kids should attend private school,I enjoy treating myself even when impractical,I'd like to have ___ child (children),I tend to plan things carefully,I have an artistic or creative side,I am energetic and outgoing,I am highly goal-oriented and driven,I prefer structured daily routines,Idle days with no plans feel,I usually find it harder to,I have a dry sense of humor,I enjoy intellectual debate and sparring,My profession is a defining part of who I am,Diet and nutrition are important to me,Staying active and exercising matters,Fashion and personal style matter to me,Sports are an important part of my identity,I'm comfortable being spontaneous over responsible,I'd prefer a partner who plans vs. goes with the flow,An artistic or creative side in a partner matters,I'd prefer a partner who is,Ambition in a partner matters to me,A dry sense of humor in a partner matters,An intellectually curious partner matters to me,A health-conscious partner matters to me,An active or fit partner matters to me,Splitting the bill on a first date feels right,I'm fine with my partner having celebrity crushes,I prefer a small close-knit friend group,I enjoy social media and actively engage with it,I love planning and hosting gatherings,I value deep conversations over casual small talk,I enjoy playful teasing with friends,I'm comfortable with friends who hold different beliefs,"I enjoy group activities (sports, games, trivia)",I prefer cozy nights in over going out,"I enjoy philosophy, science, or psychology discussions","I follow pop culture, TV, and movies","I enjoy concerts, festivals, and live events","I enjoy thrill-seeking (skydiving, roller coasters)",I could spend hours lost in a book or creative project,I enjoy dark humor and sarcasm,I love trying exotic or unusual foods,I enjoy discussing current events,Unpopular opinion I stand by:,Something I've changed my mind about recently:,I could give a 10-minute talk on:,Ideal low-effort hangout:,My weekend usually looks like:,Niche interest most people don't know I have:,Something I'm better at than I let on:,The thing I find most attractive in a person:
+           ephraimkunz@me.com,Ephraim kunz,Male,37,No,2 - 5 years,No,1,the same as mine,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,1,1,1,1,1,1,1,4,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,rgerg,hjkhjkhj,ewfwef,,dfhfdh,qwewefwef,dfgfdgdfg,jkkjy"#;
+
+        let mut reader = csv::Reader::from_reader(data.as_bytes());
+        let result = parse_responses(&mut reader);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn weight_normalization() {
+        assert!(FiveChoiceWeight(0).normalized() == 0.25);
+        assert!(FiveChoiceWeight(1).normalized() == 0.6875);
+        assert!(FiveChoiceWeight(2).normalized() == 1.125);
+        assert!(FiveChoiceWeight(3).normalized() == 1.5625);
+        assert!(FiveChoiceWeight(4).normalized() == 2.0);
+    }
 }

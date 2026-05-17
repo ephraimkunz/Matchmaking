@@ -6,8 +6,9 @@ use anyhow::Result;
 const RESPONSE_FILE_NAME: &str = "responses.csv";
 
 fn main() -> Result<()> {
-    let responses = parsing::parse_responses(RESPONSE_FILE_NAME)?;
-    let matches = matching::create_matches(&responses)?;
+    let mut reader = csv::Reader::from_path(RESPONSE_FILE_NAME)?;
+    let responses = parsing::parse_responses(&mut reader)?;
+    let matches = matching::create_matches(responses)?;
     println!("{matches}");
 
     Ok(())
