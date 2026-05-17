@@ -4,7 +4,7 @@ use std::{
 };
 
 use itertools::Itertools;
-use rand::prelude::*;
+use rand::{prelude::*, rngs::SysRng};
 
 use crate::parsing::{
     Age, FreeResponse, Gender, MarriageTimelineResponse, PartnersReligionResponse,
@@ -56,12 +56,21 @@ pub struct ShortlistMatch {
     score: f32,
 }
 
-pub fn create_matches(responses: Vec<QuestionnaireResponse>) -> Result<Matches> {
+pub fn create_matches(
+    responses: Vec<QuestionnaireResponse>,
+    sort_shortlists_by_score: bool,
+    rng_seed: Option<u64>,
+) -> Result<Matches> {
+        let mut rng = match rng_seed {
+            Some(seed) => StdRng::seed_from_u64(seed),
+            None => StdRng::try_from_rng(&mut SysRng).unwrap()
+        };
+
     // Score all pairs
     let pairs = build_scored_pairs(responses.clone());
 
     // Assign shortlists via round-robin
-    let shortlists = assign_shortlists(&responses, pairs);
+    let shortlists = assign_shortlists(&responses, pairs, &mut rng);
 
     let mut matches = shortlists
         .into_iter()
@@ -70,6 +79,17 @@ pub fn create_matches(responses: Vec<QuestionnaireResponse>) -> Result<Matches> 
                 .iter()
                 .find(|i| i.id() == id)
                 .expect("Can't find response for id");
+
+            let matches = if sort_shortlists_by_score {
+                let mut matches = matches;
+                matches.sort_unstable_by(|a, b| {
+                    b.1.partial_cmp(&a.1)
+                        .expect("Should be able to compare floats")
+                });
+                matches
+            } else {
+                let mut matches = matches; matches.shuffle(&mut rng); matches
+            };
             MatchCard {
                 name: response.demographics.name.to_string(),
                 email: response.demographics.email.to_string(),
@@ -403,6 +423,7 @@ fn build_scored_pairs(responses: Vec<QuestionnaireResponse>) -> HashMap<(String,
 fn assign_shortlists(
     responses: &[QuestionnaireResponse],
     pairs: HashMap<(String, String), f32>,
+    rng: &mut StdRng
 ) -> HashMap<String, Vec<(String, f32)>> {
     const MAX_APPEARANCES: u8 = 12;
     let mut cap = MAX_APPEARANCES;
@@ -431,12 +452,11 @@ fn assign_shortlists(
     }
 
     let mut incomplete: HashSet<_> = responses.iter().map(|r| r.id()).collect();
-    let mut rng = rand::rng();
 
     const TARGET_SHORTLIST: u8 = 7;
     while !incomplete.is_empty() {
         let mut order: Vec<_> = incomplete.iter().cloned().collect();
-        order.shuffle(&mut rng);
+        order.shuffle(rng);
 
         let mut made_progress = false;
         for pid in order {
@@ -467,7 +487,7 @@ fn assign_shortlists(
             const MAX_APPEARANCES_RELAXED: u8 = 14;
             cap = MAX_APPEARANCES_RELAXED;
             let mut order: Vec<_> = incomplete.iter().cloned().collect();
-            order.shuffle(&mut rng);
+            order.shuffle(rng);
             for pid in order {
                 const MIN_SHORTLIST: u8 = 5;
                 if shortlists.contains_key(&pid) && shortlists[&pid].len() >= MIN_SHORTLIST as usize
