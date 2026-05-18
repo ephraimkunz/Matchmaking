@@ -4,7 +4,7 @@ use std::{
 };
 
 use itertools::Itertools;
-use rand::{prelude::*, rngs::SysRng};
+use rand::prelude::*;
 
 use crate::parsing::{
     Age, FreeResponse, Gender, MarriageTimelineResponse, PartnersReligionResponse,
@@ -27,7 +27,7 @@ impl Display for Matches {
                 writeln!(f, "\t{} ({}) ({})", m.name, m.email, m.score)?;
 
                 for (k, v) in &m.freeresponse.responses {
-                    writeln!(f, "\t{} {}", k, v)?;
+                    writeln!(f, "\t{k} {v}")?;
                 }
 
                 if index < (card.shortlist.len() - 1) {
@@ -57,16 +57,20 @@ pub struct ShortlistMatch {
 }
 
 pub fn create_matches(
-    responses: Vec<QuestionnaireResponse>,
+    responses: &[QuestionnaireResponse],
     sort_shortlists_by_score: bool,
-) -> Result<Matches> {
+) -> Matches {
     let mut rng = rand::rng();
 
     // Score all pairs
-    let pairs = build_scored_pairs(responses.clone());
+    let pairs = build_scored_pairs(responses.to_owned());
 
     // Assign shortlists via round-robin
-    let shortlists = assign_shortlists(&responses, pairs, &mut rng);
+    let ids = responses
+        .iter()
+        .map(QuestionnaireResponse::id)
+        .collect_vec();
+    let shortlists = assign_shortlists(&ids, &pairs, &mut rng);
 
     let mut matches = shortlists
         .into_iter()
@@ -84,11 +88,13 @@ pub fn create_matches(
                 });
                 matches
             } else {
-                let mut matches = matches; matches.shuffle(&mut rng); matches
+                let mut matches = matches;
+                matches.shuffle(&mut rng);
+                matches
             };
             MatchCard {
-                name: response.demographics.name.to_string(),
-                email: response.demographics.email.to_string(),
+                name: response.demographics.name.clone(),
+                email: response.demographics.email.clone(),
                 shortlist: matches
                     .into_iter()
                     .map(|(matched_id, matched_score)| {
@@ -97,8 +103,8 @@ pub fn create_matches(
                             .find(|i| i.id() == matched_id)
                             .expect("Can't find response for id");
                         ShortlistMatch {
-                            name: match_response.demographics.name.to_string(),
-                            email: match_response.demographics.email.to_string(),
+                            name: match_response.demographics.name.clone(),
+                            email: match_response.demographics.email.clone(),
                             freeresponse: match_response.freeresponse.clone(),
                             score: matched_score,
                         }
@@ -110,7 +116,7 @@ pub fn create_matches(
 
     matches.sort_unstable_by_key(|m| m.email.clone());
 
-    Ok(Matches(matches))
+    Matches(matches)
 }
 
 /// Returns true of there are no dealbreakers a -> b, or b -> a, otherwise returns false.
@@ -158,7 +164,7 @@ fn passes_dealbreakers(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> 
             return false;
         }
         _ => (),
-    };
+    }
 
     match &b.dealbreakers.partners_religious_commitment {
         PartnersReligionResponse::Same
@@ -177,7 +183,7 @@ fn passes_dealbreakers(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> 
             return false;
         }
         _ => (),
-    };
+    }
 
     true
 }
@@ -210,15 +216,14 @@ fn calculate_subject_chosen_weight_scale_factor(a: &QuestionnaireResponse) -> f3
     }
 }
 
-/// Calculate how well b satisfies a's preferences. Not symmetric.
-fn directional_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f32 {
+fn process_core_values(
+    a: &QuestionnaireResponse,
+    b: &QuestionnaireResponse,
+    subject_chosen_weight_scale_factor: f32,
+) -> (f32, f32) {
+    const CORE_VALUES_SECTION_WEIGHT: f32 = 1.0;
     let mut total = 0.0;
     let mut weight_sum = 0.0;
-
-    let subject_chosen_weight_scale_factor = calculate_subject_chosen_weight_scale_factor(a);
-
-    // Calculate questions with subject-chosen weights.
-    const CORE_VALUES_SECTION_WEIGHT: f32 = 1.0;
     for (a_answer, b_answer) in a
         .corevalues
         .response_and_weights
@@ -234,7 +239,17 @@ fn directional_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f3
         weight_sum += weight;
     }
 
+    (total, weight_sum)
+}
+
+fn process_relationship_dynamics(
+    a: &QuestionnaireResponse,
+    b: &QuestionnaireResponse,
+    subject_chosen_weight_scale_factor: f32,
+) -> (f32, f32) {
     const RELATIONSHIP_DYNAMICS_SECTION_WEIGHT: f32 = 1.0;
+    let mut total = 0.0;
+    let mut weight_sum = 0.0;
     for (a_answer, b_answer) in a
         .relationshipdynamics
         .response_and_weights
@@ -250,7 +265,6 @@ fn directional_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f3
         weight_sum += weight;
     }
 
-    // Calculate questions with fixed weights.
     for (a_answer, b_answer) in a
         .relationshipdynamics
         .responses
@@ -264,7 +278,15 @@ fn directional_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f3
         weight_sum += weight;
     }
 
+    (total, weight_sum)
+}
+
+fn process_lifestyle_money(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> (f32, f32) {
     const LIFESTYLE_MONEY_SECTION_WEIGHT: f32 = 0.8;
+    const NUM_CHILDREN_QUESTION_WEIGHT: f32 = 0.75;
+
+    let mut total = 0.0;
+    let mut weight_sum = 0.0;
     for (a_answer, b_answer) in a
         .lifestylemoney
         .responses
@@ -278,7 +300,6 @@ fn directional_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f3
         weight_sum += weight;
     }
 
-    const NUM_CHILDREN_QUESTION_WEIGHT: f32 = 0.75;
     let diff = f32::abs(
         a.lifestylemoney.num_children.normalized() - b.lifestylemoney.num_children.normalized(),
     );
@@ -287,7 +308,14 @@ fn directional_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f3
     total += similarity * weight;
     weight_sum += weight;
 
+    (total, weight_sum)
+}
+
+fn process_social_style(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> (f32, f32) {
     const SOCIAL_STYLE_SECTION_WEIGHT: f32 = 0.8;
+
+    let mut total = 0.0;
+    let mut weight_sum = 0.0;
     for (a_answer, b_answer) in a
         .socialstyle
         .responses
@@ -301,8 +329,15 @@ fn directional_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f3
         weight_sum += weight;
     }
 
+    (total, weight_sum)
+}
+
+fn process_interests(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> (f32, f32) {
     // Half weight, because similar interests don't predict long-term compatibility
     const INTERESTS_SECTION_WEIGHT: f32 = 0.5;
+
+    let mut total = 0.0;
+    let mut weight_sum = 0.0;
     for (a_answer, b_answer) in a
         .interests
         .responses
@@ -316,8 +351,28 @@ fn directional_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f3
         weight_sum += weight;
     }
 
+    (total, weight_sum)
+}
+
+fn process_age(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> (f32, f32) {
+    // Similar ages are important, but not the most important.
+    const AGE_QUESTION_WEIGHT: f32 = 0.7;
+
+    let diff = a.demographics.age.0.abs_diff(b.demographics.age.0);
+    // Divide by 1 + the max spread to keep similarity > 0
+    let similarity = 1.0 - (f32::from(diff) / f32::from(Age::MAX_AGE - Age::MIN_AGE + 1));
+    let weight = AGE_QUESTION_WEIGHT;
+
+    (similarity * weight, weight)
+}
+
+fn process_self_and_partner(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> (f32, f32) {
     // Reduced, scored twice via Partner Preferences cross-match below (TODO: Is this true?)
     const SELF_DESCRIPTION_SECTION_WEIGHT: f32 = 0.6;
+    const PARTNER_PREFERENCES_SECTION_WEIGHT: f32 = 1.0;
+
+    let mut total = 0.0;
+    let mut weight_sum = 0.0;
     for (a_answer, b_answer) in a
         .selfdescription
         .direct
@@ -331,7 +386,6 @@ fn directional_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f3
         weight_sum += weight;
     }
 
-    const PARTNER_PREFERENCES_SECTION_WEIGHT: f32 = 1.0;
     for (a_answer, b_answer) in a
         .partnerpreferences
         .direct
@@ -359,15 +413,44 @@ fn directional_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f3
         weight_sum += weight;
     }
 
-    // Age
-    // Similar ages are important, but not the most important.
-    const AGE_QUESTION_WEIGHT: f32 = 0.7;
-    let diff = a.demographics.age.0.abs_diff(b.demographics.age.0);
-    // Divide by 1 + the max spread to keep similarity > 0
-    let similarity = 1.0 - (diff as f32 / (Age::MAX_AGE - Age::MIN_AGE + 1) as f32);
-    let weight = AGE_QUESTION_WEIGHT;
-    total += similarity * weight;
-    weight_sum += weight;
+    (total, weight_sum)
+}
+
+/// Calculate how well b satisfies a's preferences. Not symmetric.
+fn directional_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f32 {
+    let mut total = 0.0;
+    let mut weight_sum = 0.0;
+
+    let subject_chosen_weight_scale_factor = calculate_subject_chosen_weight_scale_factor(a);
+
+    let core_value_results = process_core_values(a, b, subject_chosen_weight_scale_factor);
+    total += core_value_results.0;
+    weight_sum += core_value_results.1;
+
+    let relationsip_dynamics_results =
+        process_relationship_dynamics(a, b, subject_chosen_weight_scale_factor);
+    total += relationsip_dynamics_results.0;
+    weight_sum += relationsip_dynamics_results.1;
+
+    let lifestyle_money_results = process_lifestyle_money(a, b);
+    total += lifestyle_money_results.0;
+    weight_sum += lifestyle_money_results.1;
+
+    let social_style_results = process_social_style(a, b);
+    total += social_style_results.0;
+    weight_sum += social_style_results.1;
+
+    let interests_results = process_interests(a, b);
+    total += interests_results.0;
+    weight_sum += interests_results.1;
+
+    let self_and_partner_results = process_self_and_partner(a, b);
+    total += self_and_partner_results.0;
+    weight_sum += self_and_partner_results.1;
+
+    let age_result = process_age(a, b);
+    total += age_result.0;
+    weight_sum += age_result.1;
 
     total / weight_sum
 }
@@ -382,7 +465,7 @@ fn mutual_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f32 {
     let min_score = ab.min(ba);
 
     // The overall happiness of the pair.
-    let average = (ab + ba) / 2.0;
+    let average = f32::midpoint(ab, ba);
 
     // Lean more toward the least satisfied but break ties with average.
     (0.8 * min_score) + (0.2 * average)
@@ -417,25 +500,26 @@ fn build_scored_pairs(responses: Vec<QuestionnaireResponse>) -> HashMap<(String,
 }
 
 fn assign_shortlists(
-    responses: &[QuestionnaireResponse],
-    pairs: HashMap<(String, String), f32>,
-    rng: &mut ThreadRng
+    ids: &[String],
+    pairs: &HashMap<(String, String), f32>,
+    rng: &mut ThreadRng,
 ) -> HashMap<String, Vec<(String, f32)>> {
     const MAX_APPEARANCES: u8 = 12;
+    const TARGET_SHORTLIST: u8 = 5;
+
     let mut cap = MAX_APPEARANCES;
     let mut appearance_count: HashMap<String, u8> = HashMap::new();
     let mut shortlists: HashMap<String, Vec<(String, f32)>> = HashMap::new();
 
     // # Precompute each person's ranked candidate list (descending score)
     let mut ranked_candidates = HashMap::new();
-    for person in responses {
-        let pid = person.id();
+    for pid in ids {
         let mut candidates = vec![];
-        for ((a, b), &s) in &pairs {
-            if a == &pid {
-                candidates.push((b.to_string(), s))
-            } else if b == &pid {
-                candidates.push((a.to_string(), s))
+        for ((a, b), &s) in pairs {
+            if a == pid {
+                candidates.push((b.clone(), s));
+            } else if b == pid {
+                candidates.push((a.clone(), s));
             }
         }
 
@@ -444,33 +528,30 @@ fn assign_shortlists(
             b.1.partial_cmp(&a.1)
                 .expect("Should be able to compare floats")
         });
-        ranked_candidates.insert(pid, candidates);
+        ranked_candidates.insert(pid.clone(), candidates);
     }
 
-    let mut incomplete: HashSet<_> = responses.iter().map(|r| r.id()).collect();
+    let mut incomplete: HashSet<_> = ids.iter().collect();
 
-    const TARGET_SHORTLIST: u8 = 7;
     while !incomplete.is_empty() {
-        let mut order: Vec<_> = incomplete.iter().cloned().collect();
+        let mut order: Vec<_> = incomplete.iter().copied().collect();
         order.shuffle(rng);
 
         let mut made_progress = false;
         for pid in order {
-            if shortlists.contains_key(&pid) && shortlists[&pid].len() >= TARGET_SHORTLIST as usize
+            if shortlists
+                .get(pid)
+                .is_some_and(|a| a.len() >= TARGET_SHORTLIST as usize)
             {
                 incomplete.remove(&pid);
                 continue;
             }
 
-            if let Some((other_id, score)) = next_available(
-                &pid,
-                cap,
-                &ranked_candidates,
-                &shortlists,
-                &appearance_count,
-            ) {
+            if let Some((other_id, score)) =
+                next_available(pid, cap, &ranked_candidates, &shortlists, &appearance_count)
+            {
                 shortlists
-                    .entry(pid.to_string())
+                    .entry(pid.clone())
                     .or_insert(vec![])
                     .push((other_id.clone(), score));
                 *appearance_count.entry(other_id.clone()).or_default() += 1;
@@ -482,24 +563,22 @@ fn assign_shortlists(
         if !made_progress {
             const MAX_APPEARANCES_RELAXED: u8 = 14;
             cap = MAX_APPEARANCES_RELAXED;
-            let mut order: Vec<_> = incomplete.iter().cloned().collect();
+            let mut order: Vec<_> = incomplete.iter().copied().collect();
             order.shuffle(rng);
             for pid in order {
-                const MIN_SHORTLIST: u8 = 5;
-                if shortlists.contains_key(&pid) && shortlists[&pid].len() >= MIN_SHORTLIST as usize
+                const MIN_SHORTLIST: u8 = 3;
+                if shortlists
+                    .get(pid)
+                    .is_some_and(|a| a.len() >= MIN_SHORTLIST as usize)
                 {
                     incomplete.remove(&pid);
                     continue;
                 }
-                if let Some((other_id, score)) = next_available(
-                    &pid,
-                    cap,
-                    &ranked_candidates,
-                    &shortlists,
-                    &appearance_count,
-                ) {
+                if let Some((other_id, score)) =
+                    next_available(pid, cap, &ranked_candidates, &shortlists, &appearance_count)
+                {
                     shortlists
-                        .entry(pid.to_string())
+                        .entry(pid.clone())
                         .or_insert(vec![])
                         .push((other_id.clone(), score));
                     *appearance_count.entry(other_id.clone()).or_default() += 1;
@@ -530,7 +609,7 @@ fn next_available(
         if appearance_count.get(other_id).copied().unwrap_or(0) >= current_cap {
             continue;
         }
-        return Some((other_id.to_string(), *score));
+        return Some((other_id.clone(), *score));
     }
 
     None
@@ -916,14 +995,14 @@ mod tests {
 
     #[test]
     fn test_empty_create_matches() {
-        let matches = create_matches(vec![]);
-        assert_eq!(matches.unwrap(), Matches(vec![]))
+        let matches = create_matches(&[], true);
+        assert_eq!(matches, Matches(vec![]))
     }
 
     #[test]
     fn test_one_item_create_matches() {
-        let matches = create_matches(vec![QuestionnaireResponse::default()]);
-        assert_eq!(matches.unwrap(), Matches(vec![]))
+        let matches = create_matches(&[QuestionnaireResponse::default()], true);
+        assert_eq!(matches, Matches(vec![]))
     }
 
     #[test]
@@ -943,9 +1022,9 @@ mod tests {
             },
             ..Default::default()
         };
-        let matches = create_matches(vec![first, second]);
+        let matches = create_matches(&[first, second], true);
         assert_eq!(
-            matches.unwrap(),
+            matches,
             Matches(vec![
                 MatchCard {
                     name: "".to_string(),

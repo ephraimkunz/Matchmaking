@@ -153,7 +153,7 @@ impl NumChildren {
 
     /// Score from 0 to 1.
     pub fn normalized(&self) -> f32 {
-        (self.0) as f32 / 9.0
+        f32::from(self.0) / 9.0
     }
 }
 
@@ -175,7 +175,7 @@ impl FourChoiceResponse {
 
     /// Score from 0 to 1.
     pub fn normalized(&self) -> f32 {
-        (self.0 - 1) as f32 / 3.0
+        f32::from(self.0 - 1) / 3.0
     }
 }
 
@@ -203,8 +203,7 @@ impl FiveChoiceWeight {
             "Very" => 3,
             "We MUST agree on this" => 4,
             other => bail!(
-                "Unexpected imporance weight \"{}\", expected \"I don't care if we agree\" or \"A little\" or \"Somewhat\" or \"Very\" or \"We MUST agree on this\"",
-                other
+                "Unexpected imporance weight \"{other}\", expected \"I don't care if we agree\" or \"A little\" or \"Somewhat\" or \"Very\" or \"We MUST agree on this\""
             ),
         };
         ensure!(
@@ -219,10 +218,10 @@ impl FiveChoiceWeight {
     const MIN_NORMALIZED: f32 = 0.25;
     const MAX_NORMALIZED: f32 = 2.0;
 
-    /// Take the 0, 1, 2, 3, or 4 discrete response and map it to MIN_NORMALIZED - MAX_NORMALIZED
+    /// Take the 0, 1, 2, 3, or 4 discrete response and map it to `MIN_NORMALIZED` - `MAX_NORMALIZED`
     pub fn normalized(&self) -> f32 {
         Self::MIN_NORMALIZED
-            + self.0 as f32 / Self::MAX_WEIGHT as f32
+            + f32::from(self.0) / f32::from(Self::MAX_WEIGHT)
                 * (Self::MAX_NORMALIZED - Self::MIN_NORMALIZED)
     }
 }
@@ -295,14 +294,12 @@ pub fn parse_responses<R: std::io::Read>(
         let interests = parse_interests(&mut header_and_field)
             .with_context(|| format!("Row {}: failed parsing interests", row_num + 2))?;
 
-        let freeresponse = parse_freeresponse(&mut header_and_field)
-            .with_context(|| format!("Row {}: failed parsing freeresponse", row_num + 2))?;
+        let freeresponse = parse_freeresponse(&mut header_and_field);
 
         let last = header_and_field.next();
         ensure!(
             last.is_none(),
-            "Unknown extra columns at end of questionnaire: {:?}",
-            last
+            "Unknown extra columns at end of questionnaire: {last:?}"
         );
 
         responses.push(QuestionnaireResponse {
@@ -316,7 +313,7 @@ pub fn parse_responses<R: std::io::Read>(
             socialstyle,
             interests,
             freeresponse,
-        })
+        });
     }
 
     Ok(responses)
@@ -330,8 +327,7 @@ fn parse_demographics<'i>(
         .ok_or_else(|| anyhow!("Unexpected reached the end of csv record"))?;
     ensure!(
         header == "Timestamp",
-        "Unexpected header \"{}\", expected \"Timestamp\"",
-        header
+        "Unexpected header \"{header}\", expected \"Timestamp\""
     );
 
     let (header, field) = header_and_field
@@ -339,8 +335,7 @@ fn parse_demographics<'i>(
         .ok_or_else(|| anyhow!("Unexpected reached the end of csv record"))?;
     ensure!(
         header == "Email Address",
-        "Unexpected header \"{}\", expected \"Email Address\"",
-        header
+        "Unexpected header \"{header}\", expected \"Email Address\""
     );
     let email = field.to_string();
 
@@ -349,8 +344,7 @@ fn parse_demographics<'i>(
         .ok_or_else(|| anyhow!("Unexpected reached the end of csv record"))?;
     ensure!(
         header == "First and last name",
-        "Unexpected header \"{}\", expected \"First and last name\"",
-        header
+        "Unexpected header \"{header}\", expected \"First and last name\""
     );
     let name = field.to_string();
 
@@ -359,16 +353,12 @@ fn parse_demographics<'i>(
         .ok_or_else(|| anyhow!("Unexpected reached the end of csv record"))?;
     ensure!(
         header == "Gender",
-        "Unexpected header \"{}\", expected \"Gender\"",
-        header
+        "Unexpected header \"{header}\", expected \"Gender\""
     );
     let gender = match field {
         "Male" => Gender::Male,
         "Female" => Gender::Female,
-        other => bail!(
-            "Unexpected gender \"{}\", expected \"Male\" or \"Female\"",
-            other
-        ),
+        other => bail!("Unexpected gender \"{other}\", expected \"Male\" or \"Female\""),
     };
 
     let (header, field) = header_and_field
@@ -376,8 +366,7 @@ fn parse_demographics<'i>(
         .ok_or_else(|| anyhow!("Unexpected reached the end of csv record"))?;
     ensure!(
         header == "Age",
-        "Unexpected header \"{}\", expected \"Age\"",
-        header
+        "Unexpected header \"{header}\", expected \"Age\""
     );
     let age = Age::new(field)?;
 
@@ -397,16 +386,14 @@ fn parse_dealbreakers<'i>(
         .ok_or_else(|| anyhow!("Unexpected reached the end of csv record"))?;
     ensure!(
         header == "I want to have children",
-        "Unexpected header \"{}\", expected \"I want to have children\"",
-        header
+        "Unexpected header \"{header}\", expected \"I want to have children\""
     );
     let wants_children = match field {
         "No" => YesNoMaybeResponse::No,
         "Yes" => YesNoMaybeResponse::Yes,
         "Open to it" => YesNoMaybeResponse::Maybe,
         other => bail!(
-            "Unexpected response for marriage timeline \"{}\", expected \"Yes\" or \"No\" or \"Open to it\"",
-            other
+            "Unexpected response for marriage timeline \"{other}\", expected \"Yes\" or \"No\" or \"Open to it\""
         ),
     };
 
@@ -415,16 +402,14 @@ fn parse_dealbreakers<'i>(
         .ok_or_else(|| anyhow!("Unexpected reached the end of csv record"))?;
     ensure!(
         header == "I'd like to be married within",
-        "Unexpected header \"{}\", expected \"I'd like to be married within\"",
-        header
+        "Unexpected header \"{header}\", expected \"I'd like to be married within\""
     );
     let marriage_timeline = match field {
         "0 - 2 years" => MarriageTimelineResponse::ZeroToTwo,
         "2 - 5 years" => MarriageTimelineResponse::TwoToFive,
         "5+ years" => MarriageTimelineResponse::FivePlus,
         other => bail!(
-            "Unexpected response for marriage timeline \"{}\", expected \"0 - 2 years\" or \"2 - 5 years\" or \"5+ years\"",
-            other
+            "Unexpected response for marriage timeline \"{other}\", expected \"0 - 2 years\" or \"2 - 5 years\" or \"5+ years\""
         ),
     };
 
@@ -433,16 +418,14 @@ fn parse_dealbreakers<'i>(
         .ok_or_else(|| anyhow!("Unexpected reached the end of csv record"))?;
     ensure!(
         header == "I intend to stay in Cache Valley long term",
-        "Unexpected header \"{}\", expected \"I intend to stay in Cache Valley long term\"",
-        header
+        "Unexpected header \"{header}\", expected \"I intend to stay in Cache Valley long term\""
     );
     let stay_local = match field {
         "Yes" => YesNoMaybeResponse::Yes,
         "No" => YesNoMaybeResponse::No,
         "It depends" => YesNoMaybeResponse::Maybe,
         other => bail!(
-            "Unexpected response for stay local \"{}\", expected \"Yes\" or \"No\" or \"It depends\"",
-            other
+            "Unexpected response for stay local \"{other}\", expected \"Yes\" or \"No\" or \"It depends\""
         ),
     };
 
@@ -451,8 +434,7 @@ fn parse_dealbreakers<'i>(
         .ok_or_else(|| anyhow!("Unexpected reached the end of csv record"))?;
     ensure!(
         header == "My religious commitment level",
-        "Unexpected header \"{}\", expected \"My religious commitment level\"",
-        header
+        "Unexpected header \"{header}\", expected \"My religious commitment level\""
     );
     let my_religious_commitment = MyReligiousCommitment::new(field)?;
 
@@ -461,16 +443,14 @@ fn parse_dealbreakers<'i>(
         .ok_or_else(|| anyhow!("Unexpected reached the end of csv record"))?;
     ensure!(
         header == "My partner's religious commitment level should be:",
-        "Unexpected header \"{}\", expected \"My partner's religious commitment level should be:\"",
-        header
+        "Unexpected header \"{header}\", expected \"My partner's religious commitment level should be:\""
     );
     let partners_religious_commitment = match field {
         "the same as mine" => PartnersReligionResponse::Same,
         "within one level of mine" => PartnersReligionResponse::Within1Level,
         "it doesn't matter" => PartnersReligionResponse::DoesNotMatter,
         other => bail!(
-            "Unexpected response for partners religious commitment \"{}\", expected \"the same as mine\" or \"within one level of mine\" or \"it doesn't matter\"",
-            other
+            "Unexpected response for partners religious commitment \"{other}\", expected \"the same as mine\" or \"within one level of mine\" or \"it doesn't matter\""
         ),
     };
 
@@ -491,7 +471,7 @@ fn parse_corevalues<'i>(
         .tuples::<(_, _)>()
         .take(14)
         .map(|((_, q_value), (w_header, w_value))| {
-            ensure!(w_header == "From the question above, how important is it that your partner feels the same way about this as you do?", "Unexpected header \"{}\", expected \"From the question above, how important is it that your partner feels the same way about this as you do?\"", w_header);
+            ensure!(w_header == "From the question above, how important is it that your partner feels the same way about this as you do?", "Unexpected header \"{w_header}\", expected \"From the question above, how important is it that your partner feels the same way about this as you do?\"");
 
             let response = FourChoiceResponse::new(q_value)?;
             let weight = FiveChoiceWeight::new(w_value)?;
@@ -502,7 +482,7 @@ fn parse_corevalues<'i>(
     Ok(CoreValues {
         response_and_weights: response_and_weights
             .try_into()
-            .map_err(|e| anyhow::anyhow!("Conversion of vec to array failed: {:?}", e))?,
+            .map_err(|e| anyhow::anyhow!("Conversion of vec to array failed: {e:?}"))?,
     })
 }
 
@@ -514,7 +494,7 @@ fn parse_relationshipdynamics<'i>(
         .tuples::<(_, _)>()
         .take(8)
         .map(|((_, q_value), (w_header, w_value))| {
-            ensure!(w_header == "From the question above, how important is it that your partner feels the same way about this as you do?", "Unexpected header \"{}\", expected \"From the question above, how important is it that your partner feels the same way about this as you do?\"", w_header);
+            ensure!(w_header == "From the question above, how important is it that your partner feels the same way about this as you do?", "Unexpected header \"{w_header}\", expected \"From the question above, how important is it that your partner feels the same way about this as you do?\"");
 
             let response = FourChoiceResponse::new(q_value)?;
             let weight = FiveChoiceWeight::new(w_value)?;
@@ -534,10 +514,10 @@ fn parse_relationshipdynamics<'i>(
     Ok(RelationshipDynamics {
         response_and_weights: response_and_weights
             .try_into()
-            .map_err(|e| anyhow::anyhow!("Conversion of vec to array failed: {:?}", e))?,
+            .map_err(|e| anyhow::anyhow!("Conversion of vec to array failed: {e:?}"))?,
         responses: responses
             .try_into()
-            .map_err(|e| anyhow::anyhow!("Conversion of vec to array failed: {:?}", e))?,
+            .map_err(|e| anyhow::anyhow!("Conversion of vec to array failed: {e:?}"))?,
     })
 }
 
@@ -558,8 +538,7 @@ fn parse_lifestylemoney<'i>(
         .ok_or_else(|| anyhow!("Unexpected reached the end of csv record"))?;
     ensure!(
         header == "I'd like to have ___ child (children)",
-        "Unexpected header \"{}\", expected \"I'd like to have ___ child (children)\"",
-        header
+        "Unexpected header \"{header}\", expected \"I'd like to have ___ child (children)\""
     );
 
     let num_children = NumChildren::new(field)?;
@@ -567,7 +546,7 @@ fn parse_lifestylemoney<'i>(
     Ok(LifestyleMoney {
         responses: responses
             .try_into()
-            .map_err(|e| anyhow::anyhow!("Conversion of vec to array failed: {:?}", e))?,
+            .map_err(|e| anyhow::anyhow!("Conversion of vec to array failed: {e:?}"))?,
         num_children,
     })
 }
@@ -590,7 +569,7 @@ fn parse_selfdescription<'i>(
         .map(|&i| responses[i].clone())
         .collect::<Vec<_>>()
         .try_into()
-        .map_err(|e| anyhow::anyhow!("Conversion of vec to array failed: {:?}", e))?;
+        .map_err(|e| anyhow::anyhow!("Conversion of vec to array failed: {e:?}"))?;
 
     let direct_indices = [4, 5, 6, 9, 12, 13, 14];
     let direct: [FourChoiceResponse; 7] = direct_indices
@@ -598,7 +577,7 @@ fn parse_selfdescription<'i>(
         .map(|&i| responses[i].clone())
         .collect::<Vec<_>>()
         .try_into()
-        .map_err(|e| anyhow::anyhow!("Conversion of vec to array failed: {:?}", e))?;
+        .map_err(|e| anyhow::anyhow!("Conversion of vec to array failed: {e:?}"))?;
     Ok(SelfDescription {
         crossmatched,
         direct,
@@ -623,7 +602,7 @@ fn parse_partnerpreferences<'i>(
         .map(|&i| responses[i].clone())
         .collect::<Vec<_>>()
         .try_into()
-        .map_err(|e| anyhow::anyhow!("Conversion of vec to array failed: {:?}", e))?;
+        .map_err(|e| anyhow::anyhow!("Conversion of vec to array failed: {e:?}"))?;
 
     let direct_indices = [8, 9];
     let direct: [FourChoiceResponse; 2] = direct_indices
@@ -631,7 +610,7 @@ fn parse_partnerpreferences<'i>(
         .map(|&i| responses[i].clone())
         .collect::<Vec<_>>()
         .try_into()
-        .map_err(|e| anyhow::anyhow!("Conversion of vec to array failed: {:?}", e))?;
+        .map_err(|e| anyhow::anyhow!("Conversion of vec to array failed: {e:?}"))?;
     Ok(PartnerPreferences {
         crossmatched,
         direct,
@@ -653,7 +632,7 @@ fn parse_socialstyle<'i>(
     Ok(SocialStyle {
         responses: responses
             .try_into()
-            .map_err(|e| anyhow::anyhow!("Conversion of vec to array failed: {:?}", e))?,
+            .map_err(|e| anyhow::anyhow!("Conversion of vec to array failed: {e:?}"))?,
     })
 }
 
@@ -672,13 +651,13 @@ fn parse_interests<'i>(
     Ok(Interests {
         responses: responses
             .try_into()
-            .map_err(|e| anyhow::anyhow!("Conversion of vec to array failed: {:?}", e))?,
+            .map_err(|e| anyhow::anyhow!("Conversion of vec to array failed: {e:?}"))?,
     })
 }
 
 fn parse_freeresponse<'i>(
     header_and_field: &mut impl Iterator<Item = (&'i str, &'i str)>,
-) -> Result<FreeResponse> {
+) -> FreeResponse {
     let responses = header_and_field
         .by_ref()
         .take(8)
@@ -691,7 +670,7 @@ fn parse_freeresponse<'i>(
         })
         .collect::<HashMap<String, String>>();
 
-    Ok(FreeResponse { responses })
+    FreeResponse { responses }
 }
 
 #[cfg(test)]

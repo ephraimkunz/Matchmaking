@@ -1,3 +1,11 @@
+#![warn(clippy::pedantic)]
+#![warn(clippy::correctness)]
+#![warn(clippy::suspicious)]
+#![warn(clippy::complexity)]
+#![warn(clippy::perf)]
+#![warn(clippy::style)]
+#![allow(clippy::cast_precision_loss)]
+
 mod matching;
 mod parsing;
 
@@ -24,7 +32,7 @@ fn main() -> Result<()> {
 
     let mut reader = csv::Reader::from_path(args.input_file_name)?;
     let responses = parsing::parse_responses(&mut reader)?;
-    let matches = matching::create_matches(responses, args.sort_shortlists_by_score)?;
+    let matches = matching::create_matches(&responses, args.sort_shortlists_by_score);
     println!("{matches}");
 
     Ok(())
