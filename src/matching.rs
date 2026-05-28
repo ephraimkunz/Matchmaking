@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::{Display, Formatter},
-};
+use std::collections::{HashMap, HashSet};
 
 use itertools::Itertools;
 use rand::prelude::*;
@@ -10,34 +7,34 @@ use crate::parsing::{
     Age, FreeResponse, Gender, MarriageTimelineResponse, PartnersReligionResponse,
     QuestionnaireResponse, YesNoMaybeResponse,
 };
-use anyhow::Result;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Matches(Vec<MatchCard>);
 
-impl Display for Matches {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+impl Matches {
+    pub fn print_scores(&self, print_scores: bool) {
         for card in &self.0 {
-            writeln!(
-                f,
-                "======================\n{} ({})\n\nMatches:",
-                card.name, card.email
-            )?;
+            println!("{} ({})\n\nMatches:", card.name, card.email);
             for (index, m) in card.shortlist.iter().enumerate() {
-                writeln!(f, "\t{} ({}) ({})", m.name, m.email, m.score)?;
+                if print_scores {
+                    println!("\t{} ({}) ({})", m.name, m.email, m.score);
+                } else {
+                    println!("\t{} ({})", m.name, m.email);
+                }
 
                 for (k, v) in &m.freeresponse.responses {
-                    writeln!(f, "\t{k} {v}")?;
+                    println!("\t{k} {v}");
                 }
 
                 if index < (card.shortlist.len() - 1) {
-                    writeln!(f)?;
+                    println!();
                 }
             }
 
-            writeln!(f, "======================\n")?;
+            println!(
+                "\n========================================================================\n"
+            );
         }
-        Ok(())
     }
 }
 
