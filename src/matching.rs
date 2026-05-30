@@ -11,7 +11,9 @@ use crate::parsing::{
 
 use anyhow::Result;
 
-#[derive(Debug, Default)]
+const HISTOGRAM_BUCKETS: usize = 20;
+
+#[derive(Debug)]
 pub struct Diagnostics {
     // Pool
     pub male_count: usize,
@@ -31,13 +33,44 @@ pub struct Diagnostics {
     pub appearance_max: usize,
     pub appearance_stddev: f32,
     pub zero_appearance_participants: usize,
-    // Quality
-    pub histogram: [usize; 21], // 0.05-wide buckets from 0.00 to 1.00, last bucket is >=1.00
+    // Quality — histogram of served scores, auto-ranged over the observed [min, max].
+    pub histogram: [usize; HISTOGRAM_BUCKETS],
+    pub histogram_range: Option<(f32, f32)>, // (min_served, max_served); None if no scores served
     pub rank_regret_mean: f32,
     pub rank_regret_p95: usize,
+    pub mutual_rate: f32,
+}
+
+impl Default for Diagnostics {
+    fn default() -> Self {
+        Self {
+            male_count: 0,
+            female_count: 0,
+            pairs_scored: 0,
+            dealbreaker_eliminated: 0,
+            dealbreaker_by_wants_children: 0,
+            dealbreaker_by_stay_local: 0,
+            dealbreaker_by_marriage_timeline: 0,
+            dealbreaker_by_religion: 0,
+            cap_relaxed: false,
+            shortlist_full: 0,
+            shortlist_acceptable: 0,
+            shortlist_under_min: 0,
+            shortlist_empty: 0,
+            appearance_max: 0,
+            appearance_stddev: 0.0,
+            zero_appearance_participants: 0,
+            histogram: [0; HISTOGRAM_BUCKETS],
+            histogram_range: None,
+            rank_regret_mean: 0.0,
+            rank_regret_p95: 0,
+            mutual_rate: 0.0,
+        }
+    }
 }
 
 impl Display for Diagnostics {
+    #[allow(clippy::too_many_lines)]
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         const BAR_WIDTH: usize = 50;
         writeln!(f, "== Pool (is the input usable?) ==")?;
@@ -111,22 +144,30 @@ impl Display for Diagnostics {
         writeln!(f, "\n== Quality (is the output good?) ==")?;
         writeln!(
             f,
-            "shortlisted_score_histogram: (distribution of scores that were actually served; mass in high buckets is healthy, weight in low buckets means someone got a poor match)"
+            "shortlisted_score_histogram: (distribution of scores that were actually served, auto-ranged to the observed [min, max]; mass in high buckets is healthy, weight in low buckets means someone got a poor match)"
         )?;
-        let max_count = *self.histogram.iter().max().unwrap_or(&1);
-        for (i, &count) in self.histogram.iter().enumerate() {
-            let label = if i < 20 {
-                format!("{:.2}-{:.2}", i as f32 * 0.05, (i + 1) as f32 * 0.05)
-            } else {
-                ">=1.00 ".to_string()
-            };
-            let bar_len = if max_count == 0 {
-                0
-            } else {
-                count * BAR_WIDTH / max_count
-            };
-            let bar: String = "#".repeat(bar_len);
-            writeln!(f, "  {label} | {bar:<BAR_WIDTH$}  {count}")?;
+        match self.histogram_range {
+            None => writeln!(f, "  (no scores served)")?,
+            Some((lo, hi)) => {
+                let width = (hi - lo) / HISTOGRAM_BUCKETS as f32;
+                let max_count = *self.histogram.iter().max().unwrap_or(&1);
+                for (i, &count) in self.histogram.iter().enumerate() {
+                    let bucket_lo = lo + i as f32 * width;
+                    let bucket_hi = if i == HISTOGRAM_BUCKETS - 1 {
+                        hi
+                    } else {
+                        bucket_lo + width
+                    };
+                    let label = format!("{bucket_lo:.3}-{bucket_hi:.3}");
+                    let bar_len = if max_count == 0 {
+                        0
+                    } else {
+                        count * BAR_WIDTH / max_count
+                    };
+                    let bar: String = "#".repeat(bar_len);
+                    writeln!(f, "  {label} | {bar:<BAR_WIDTH$}  {count}")?;
+                }
+            }
         }
         writeln!(
             f,
@@ -137,6 +178,11 @@ impl Display for Diagnostics {
             f,
             "rank_regret_p95: {}\t(same skip-count, 95th percentile. A small mean with a large p95 means most picks were unblocked but a few people had popular candidates capped out and got pushed deep into their list.)",
             self.rank_regret_p95
+        )?;
+        writeln!(
+            f,
+            "mutual_rate: {:.1}%\t(fraction of shortlist entries where B is also on A's list; 100% = every match is mutual, low values mean many one-sided introductions)",
+            self.mutual_rate * 100.0
         )?;
         Ok(())
     }
@@ -340,11 +386,34 @@ fn build_diagnostics(
         / total_participants.max(1) as f32;
     let appearance_stddev = variance.sqrt();
 
-    // Quality: histogram of shortlisted scores (0.05-wide buckets)
-    let mut histogram = [0usize; 21];
-    for card in &result.cards {
-        for m in &card.shortlist {
-            let idx = ((m.score / 0.05).floor() as usize).min(20);
+    // Quality: histogram of served scores, auto-ranged over the observed [min, max] so the
+    // chart keeps full resolution no matter where the scores cluster.
+    let mut histogram = [0usize; HISTOGRAM_BUCKETS];
+    let served_scores: Vec<f32> = result
+        .cards
+        .iter()
+        .flat_map(|c| c.shortlist.iter().map(|m| m.score))
+        .collect();
+    let histogram_range = served_scores
+        .iter()
+        .copied()
+        .fold(None, |acc: Option<(f32, f32)>, s| match acc {
+            None => Some((s, s)),
+            Some((lo, hi)) => Some((lo.min(s), hi.max(s))),
+        });
+    if let Some((lo, hi)) = histogram_range {
+        let range = hi - lo;
+        for score in &served_scores {
+            let idx = if range <= f32::EPSILON {
+                0
+            } else {
+                // Safe: (score-lo)/range ∈ [0,1] so the product ∈ [0, HISTOGRAM_BUCKETS]
+                // and floor() ≥ 0, so truncation and sign-loss are impossible in practice.
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                let v = (((score - lo) / range) * HISTOGRAM_BUCKETS as f32).floor() as usize;
+                v
+            }
+            .min(HISTOGRAM_BUCKETS - 1);
             histogram[idx] += 1;
         }
     }
@@ -368,6 +437,36 @@ fn build_diagnostics(
         excess_ranks[p95_idx]
     };
 
+    // Mutuality: for every (A -> B) entry in all shortlists, check whether B's shortlist
+    // also contains A.
+    let shortlist_index: FxHashMap<&str, FxHashSet<&str>> = result
+        .cards
+        .iter()
+        .map(|card| {
+            let members: FxHashSet<&str> =
+                card.shortlist.iter().map(|m| m.email.as_str()).collect();
+            (card.email.as_str(), members)
+        })
+        .collect();
+    let total_entries: usize = result.cards.iter().map(|c| c.shortlist.len()).sum();
+    let mutual_entries: usize = result
+        .cards
+        .iter()
+        .flat_map(|card| {
+            card.shortlist.iter().map(|m| {
+                shortlist_index
+                    .get(m.email.as_str())
+                    .is_some_and(|their_list| their_list.contains(card.email.as_str()))
+                    as usize
+            })
+        })
+        .sum();
+    let mutual_rate = if total_entries == 0 {
+        0.0
+    } else {
+        mutual_entries as f32 / total_entries as f32
+    };
+
     Some(Diagnostics {
         male_count: ps.male_count,
         female_count: ps.female_count,
@@ -386,8 +485,10 @@ fn build_diagnostics(
         appearance_stddev,
         zero_appearance_participants,
         histogram,
+        histogram_range,
         rank_regret_mean,
         rank_regret_p95,
+        mutual_rate,
     })
 }
 
