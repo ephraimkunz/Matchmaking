@@ -928,7 +928,6 @@ fn assign_shortlists(
         if !made_progress {
             const MAX_APPEARANCES_RELAXED: u8 = 14;
             cap = MAX_APPEARANCES_RELAXED;
-            cap_relaxed = true;
             loop {
                 let mut made_progress_relaxed = false;
                 let mut order: Vec<_> = incomplete.iter().copied().collect();
@@ -950,6 +949,7 @@ fn assign_shortlists(
                             .push((other_id.to_string(), score));
                         *appearance_count.entry(other_id).or_default() += 1;
                         made_progress_relaxed = true;
+                        cap_relaxed = true;
                     }
                 }
                 if !made_progress_relaxed {
