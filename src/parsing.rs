@@ -59,10 +59,10 @@ pub struct LifestyleMoney {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SelfDescription {
-    /// Crossmatched against corresponding item in PartnerPreferences.crossmatched
+    /// Subset of items also compared against partner's PartnerPreferences.crossmatched.
     pub crossmatched: [FourChoiceResponse; 8],
 
-    /// Direct comparison with corresponding SelfDescription.direct for partner candidate.
+    /// All items scored as direct similarity against partner's SelfDescription.direct.
     pub direct: [FourChoiceResponse; 15],
 }
 

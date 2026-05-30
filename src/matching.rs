@@ -663,7 +663,7 @@ fn process_age(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> (f32, f3
 }
 
 fn process_self_and_partner(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> (f32, f32) {
-    // Reduced, scored twice via Partner Preferences cross-match below (TODO: Is this true?)
+    // Reduced because 8 of the 15 self-description items also feed the partner-preferences cross-match below. They score twice.
     const SELF_DESCRIPTION_SECTION_WEIGHT: f32 = 0.6;
     const PARTNER_PREFERENCES_SECTION_WEIGHT: f32 = 1.0;
 
@@ -752,8 +752,7 @@ fn directional_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f3
 }
 
 /// Calculated the mutual score of a and b in a non-directional way, so that a's compatibility
-/// with b and b's compatibility with a are both contained in a single score.
-fn mutual_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f32 {
+/// with b and b's compatibility with a are both contained in a single score.fn mutual_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f32 {
     let ab = directional_score(a, b);
     let ba = directional_score(b, a);
 
@@ -785,7 +784,7 @@ fn build_scored_pairs(
     responses: &[QuestionnaireResponse],
     collect_stats: bool,
 ) -> (FxHashMap<(&str, &str), f32>, Option<PairsStats>) {
-    // Empircally good enough for 1000 people. Technically the capacity should be (responses / 2) ^ 2 assuming
+    // Empirically good enough for 1000 people. Technically the capacity should be (responses / 2) ^ 2 assuming
     // equal numbers of men and women. But dealbreakers shrink that down.
     let mut pairs = FxHashMap::with_capacity_and_hasher(50000, FxBuildHasher);
 
@@ -877,7 +876,7 @@ fn assign_shortlists(
     let mut appearance_count: FxHashMap<&str, usize> = FxHashMap::default();
     let mut shortlists: FxHashMap<String, Vec<(String, f32)>> = FxHashMap::default();
 
-    // # Precompute each person's ranked candidate list (descending score)
+    // Precompute each person's ranked candidate list (descending score)
     let mut ranked_candidates: FxHashMap<&str, Vec<(&str, f32)>> = FxHashMap::default();
 
     // Estimated that we don't have dealbreakers with 1/2 of the other gender (1/2 of ids, assuming equal gender ratios).
