@@ -8,33 +8,42 @@ use crate::parsing::{
     QuestionnaireResponse, YesNoMaybeResponse,
 };
 
+use anyhow::Result;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Matches(Vec<MatchCard>);
 
 impl Matches {
-    pub fn print_scores(&self, print_scores: bool) {
+    pub fn printable_format<W: std::io::Write>(
+        &self,
+        print_scores: bool,
+        writer: &mut W,
+    ) -> Result<()> {
         for card in &self.0 {
-            println!("{} ({})\n\nMatches:", card.name, card.email);
+            writeln!(writer, "{} ({})\n\nMatches:", card.name, card.email)?;
             for (index, m) in card.shortlist.iter().enumerate() {
                 if print_scores {
-                    println!("\t{} ({}) ({})", m.name, m.email, m.score);
+                    writeln!(writer, "\t{} ({}) ({})", m.name, m.email, m.score)?;
                 } else {
-                    println!("\t{} ({})", m.name, m.email);
+                    writeln!(writer, "\t{} ({})", m.name, m.email)?;
                 }
 
                 for (k, v) in &m.freeresponse.responses {
-                    println!("\t{k} {v}");
+                    writeln!(writer, "\t{k} {v}")?;
                 }
 
                 if index < (card.shortlist.len() - 1) {
-                    println!();
+                    writeln!(writer)?;
                 }
             }
 
-            println!(
+            writeln!(
+                writer,
                 "\n========================================================================\n"
-            );
+            )?;
         }
+
+        Ok(())
     }
 }
 

@@ -720,7 +720,7 @@ mod tests {
 
     #[test]
     fn parse_single_result() {
-        let mut reader = csv::Reader::from_path(Path::new("single_real.csv")).unwrap();
+        let mut reader = csv::Reader::from_path(Path::new("test_data/single_real.csv")).unwrap();
         let result = parse_responses(&mut reader);
         assert_eq!(
             result.unwrap(),

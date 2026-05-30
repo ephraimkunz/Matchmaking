@@ -13,6 +13,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::Parser;
+use matching::Matches;
 
 /// Generate shortlists of compatible dating partners, based on input dating questionnaire.
 #[derive(Parser, Debug)]
@@ -33,10 +34,46 @@ struct Args {
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    let matches = parse_and_generate_matches(&args)?;
+    matches.printable_format(args.print_scores, &mut std::io::stdout())?;
+    Ok(())
+}
 
-    let mut reader = csv::Reader::from_path(args.input_file_name)?;
+fn parse_and_generate_matches(args: &Args) -> Result<Matches> {
+    let mut reader = csv::Reader::from_path(args.input_file_name.clone())?;
     let responses = parsing::parse_responses(&mut reader)?;
     let matches = matching::create_matches(&responses, args.sort_shortlists_by_score);
-    matches.print_scores(args.print_scores);
-    Ok(())
+    Ok(matches)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::CommandFactory;
+    use itertools::Itertools;
+
+    #[test]
+    fn verify_cli() {
+        Args::command().debug_assert();
+    }
+
+    #[test]
+    fn parse_and_generate_matches_test() {
+        let input = [
+            "matchmaking",
+            "--sort-shortlists-by-score",
+            "--print-scores",
+            "test_data/many_generated.csv",
+        ];
+        let args = Args::try_parse_from(input).unwrap();
+        let matches = parse_and_generate_matches(&args).unwrap();
+        let mut writer = vec![];
+        matches
+            .printable_format(args.print_scores, &mut writer)
+            .unwrap();
+        let output = std::str::from_utf8(&writer).unwrap();
+
+        assert!(!output.is_empty());
+        assert!(output.lines().collect_vec().len() > 100);
+    }
 }

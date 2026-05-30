@@ -795,11 +795,6 @@ Age ranking	Prioritize closer in age, but not overwhelmingly
 
 TODO:
 Clear enough question about breadwinning / gender roles?
-Temptation - put a random person on each person’s short list. Placebo effect. Also, helps us evaluate if we did better than random.
+Maybe - put a random person on each person’s short list. Placebo effect. Also, helps us evaluate if we did better than random.
 
 Notes for the event:Alternate who hosts and who roams at each course, so each side feels like they have agency.
-
-Next steps
-Have friend group fill out. Make sure algorithm works.
-Rollout to our ward
-Rollout to 4 ward
