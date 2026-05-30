@@ -1,10 +1,8 @@
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::{Display, Formatter},
-};
+use std::fmt::{Display, Formatter};
 
 use itertools::Itertools;
 use rand::prelude::*;
+use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 
 use crate::parsing::{
     Age, FreeResponse, Gender, MarriageTimelineResponse, PartnersReligionResponse,
@@ -81,12 +79,14 @@ pub fn create_matches(
         .collect_vec();
     let shortlists = assign_shortlists(&ids, &pairs, &mut rng);
 
+    let ids_to_responses: FxHashMap<&str, &QuestionnaireResponse> =
+        responses.iter().map(|r| (r.id(), r)).collect();
+
     let mut matches = shortlists
         .into_iter()
         .map(|(id, matches)| {
-            let response = responses
-                .iter()
-                .find(|i| i.id() == id)
+            let response = ids_to_responses
+                .get(id.as_str())
                 .expect("Can't find response for id");
 
             let matches = if sort_shortlists_by_score {
@@ -107,9 +107,8 @@ pub fn create_matches(
                 shortlist: matches
                     .into_iter()
                     .map(|(matched_id, matched_score)| {
-                        let match_response = responses
-                            .iter()
-                            .find(|i| i.id() == matched_id)
+                        let match_response = ids_to_responses
+                            .get(matched_id.as_str())
                             .expect("Can't find response for id");
                         ShortlistMatch {
                             name: match_response.demographics.name.clone(),
@@ -486,10 +485,10 @@ fn mutual_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f32 {
 /// Builds a hashmap of (male.id, female.id) -> score. No pairing will be in the map if
 /// there are dealbreakers on either side. Score takes into account how compatible each
 /// side is with the other, so no need for a reverse map (female.id, male.id) -> score.
-fn build_scored_pairs(responses: &[QuestionnaireResponse]) -> HashMap<(&str, &str), f32> {
+fn build_scored_pairs(responses: &[QuestionnaireResponse]) -> FxHashMap<(&str, &str), f32> {
     // Empircally good enough for 1000 people. Technically the capacity should be (responses / 2) ^ 2 assuming
     // equal numbers of men and women. But dealbreakers shrink that down.
-    let mut pairs = HashMap::with_capacity(50000);
+    let mut pairs = FxHashMap::with_capacity_and_hasher(50000, FxBuildHasher);
 
     for male in responses
         .iter()
@@ -514,22 +513,30 @@ fn build_scored_pairs(responses: &[QuestionnaireResponse]) -> HashMap<(&str, &st
 
 fn assign_shortlists(
     ids: &[&str],
-    pairs: &HashMap<(&str, &str), f32>,
+    pairs: &FxHashMap<(&str, &str), f32>,
     rng: &mut ThreadRng,
-) -> HashMap<String, Vec<(String, f32)>> {
+) -> FxHashMap<String, Vec<(String, f32)>> {
     const MAX_APPEARANCES: u8 = 12;
     const TARGET_SHORTLIST: u8 = 5;
 
     let mut cap = MAX_APPEARANCES;
-    let mut appearance_count: HashMap<&str, u8> = HashMap::new();
-    let mut shortlists: HashMap<String, Vec<(String, f32)>> = HashMap::new();
+    let mut appearance_count: FxHashMap<&str, u8> = FxHashMap::default();
+    let mut shortlists: FxHashMap<String, Vec<(String, f32)>> = FxHashMap::default();
 
     // # Precompute each person's ranked candidate list (descending score)
-    let mut ranked_candidates: HashMap<&str, Vec<(&str, f32)>> = HashMap::new();
+    let mut ranked_candidates: FxHashMap<&str, Vec<(&str, f32)>> = FxHashMap::default();
 
+    // Estimated that we don't have dealbreakers with 1/2 of the other gender (1/2 of ids, assuming equal gender ratios).
+    let estimated_rank_capacity = ids.len() / 4;
     for ((a, b), &s) in pairs {
-        ranked_candidates.entry(a).or_default().push((b, s));
-        ranked_candidates.entry(b).or_default().push((a, s));
+        ranked_candidates
+            .entry(a)
+            .or_insert(Vec::with_capacity(estimated_rank_capacity))
+            .push((b, s));
+        ranked_candidates
+            .entry(b)
+            .or_insert(Vec::with_capacity(estimated_rank_capacity))
+            .push((a, s));
     }
 
     // Ensure every id has an entry, even people who are not in pairs (only one of their gender, or dealbreakers that exclude everyone else)
@@ -545,7 +552,7 @@ fn assign_shortlists(
         });
     }
 
-    let mut incomplete: HashSet<_> = ids.iter().collect();
+    let mut incomplete: FxHashSet<_> = ids.iter().collect();
 
     while !incomplete.is_empty() {
         let mut order: Vec<_> = incomplete.iter().copied().collect();
@@ -609,9 +616,9 @@ fn assign_shortlists(
 fn next_available<'a>(
     pid: &str,
     current_cap: u8,
-    ranked_candidates: &'a HashMap<&str, Vec<(&str, f32)>>,
-    shortlists: &HashMap<String, Vec<(String, f32)>>,
-    appearance_count: &HashMap<&str, u8>,
+    ranked_candidates: &'a FxHashMap<&str, Vec<(&str, f32)>>,
+    shortlists: &FxHashMap<String, Vec<(String, f32)>>,
+    appearance_count: &FxHashMap<&str, u8>,
 ) -> Option<(&'a str, f32)> {
     for (other_id, score) in &ranked_candidates[pid] {
         if shortlists

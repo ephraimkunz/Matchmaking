@@ -1,6 +1,7 @@
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use itertools::Itertools;
-use std::{collections::HashSet, vec};
+use rustc_hash::FxHashSet;
+use std::vec;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct QuestionnaireResponse {
@@ -263,7 +264,7 @@ pub fn parse_responses<R: std::io::Read>(
 ) -> Result<Vec<QuestionnaireResponse>> {
     let headers = reader.headers().context("Invalid csv header")?.clone();
     let mut responses = vec![];
-    let mut seen_ids = HashSet::new();
+    let mut seen_ids = FxHashSet::default();
 
     for (row_num, result) in reader.records().enumerate() {
         let record = result.with_context(|| format!("Invalid record at row {}", row_num + 2))?; // +2 for 1-index + header row
