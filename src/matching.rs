@@ -520,26 +520,20 @@ fn assign_shortlists(
     const TARGET_SHORTLIST: u8 = 5;
 
     let mut cap = MAX_APPEARANCES;
-    let mut appearance_count: HashMap<String, u8> = HashMap::new();
+    let mut appearance_count: HashMap<&str, u8> = HashMap::new();
     let mut shortlists: HashMap<String, Vec<(String, f32)>> = HashMap::new();
 
     // # Precompute each person's ranked candidate list (descending score)
-    let mut ranked_candidates: HashMap<String, Vec<(String, f32)>> = HashMap::new();
+    let mut ranked_candidates: HashMap<&str, Vec<(&str, f32)>> = HashMap::new();
 
     for ((a, b), &s) in pairs {
-        ranked_candidates
-            .entry(a.clone())
-            .or_default()
-            .push((b.clone(), s));
-        ranked_candidates
-            .entry(b.clone())
-            .or_default()
-            .push((a.clone(), s));
+        ranked_candidates.entry(a).or_default().push((b, s));
+        ranked_candidates.entry(b).or_default().push((a, s));
     }
 
     // Ensure every id has an entry, even people who are not in pairs (only one of their gender, or dealbreakers that exclude everyone else)
     for pid in ids {
-        ranked_candidates.entry(pid.to_string()).or_default();
+        ranked_candidates.entry(pid).or_default();
     }
 
     for value in ranked_candidates.values_mut() {
@@ -572,8 +566,8 @@ fn assign_shortlists(
                 shortlists
                     .entry(pid.to_string())
                     .or_insert(vec![])
-                    .push((other_id.clone(), score));
-                *appearance_count.entry(other_id.clone()).or_default() += 1;
+                    .push((other_id.to_string(), score));
+                *appearance_count.entry(other_id).or_default() += 1;
                 made_progress = true;
             }
         }
@@ -599,8 +593,8 @@ fn assign_shortlists(
                     shortlists
                         .entry(pid.to_string())
                         .or_insert(vec![])
-                        .push((other_id.clone(), score));
-                    *appearance_count.entry(other_id.clone()).or_default() += 1;
+                        .push((other_id.to_string(), score));
+                    *appearance_count.entry(other_id).or_default() += 1;
                 }
             }
             // Break after relaxed retry regardless, avoid infinite loop
@@ -611,13 +605,13 @@ fn assign_shortlists(
     shortlists
 }
 
-fn next_available(
+fn next_available<'a>(
     pid: &str,
     current_cap: u8,
-    ranked_candidates: &HashMap<String, Vec<(String, f32)>>,
+    ranked_candidates: &'a HashMap<&str, Vec<(&str, f32)>>,
     shortlists: &HashMap<String, Vec<(String, f32)>>,
-    appearance_count: &HashMap<String, u8>,
-) -> Option<(String, f32)> {
+    appearance_count: &HashMap<&str, u8>,
+) -> Option<(&'a str, f32)> {
     for (other_id, score) in &ranked_candidates[pid] {
         if shortlists
             .get(pid)
@@ -628,7 +622,7 @@ fn next_available(
         if appearance_count.get(other_id).copied().unwrap_or(0) >= current_cap {
             continue;
         }
-        return Some((other_id.clone(), *score));
+        return Some((other_id, *score));
     }
 
     None
