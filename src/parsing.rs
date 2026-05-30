@@ -17,8 +17,9 @@ pub struct QuestionnaireResponse {
 }
 
 impl QuestionnaireResponse {
-    pub fn id(&self) -> String {
-        self.demographics.email.clone()
+    pub fn id(&self) -> &str {
+        // Each response is uniqued by email address.
+        &self.demographics.email
     }
 }
 

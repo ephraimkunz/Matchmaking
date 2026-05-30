@@ -498,7 +498,7 @@ fn build_scored_pairs(responses: Vec<QuestionnaireResponse>) -> HashMap<(String,
 
             let score = mutual_score(male, female);
 
-            pairs.insert((male.id(), female.id()), score);
+            pairs.insert((male.id().to_string(), female.id().to_string()), score);
         }
     }
 
@@ -506,7 +506,7 @@ fn build_scored_pairs(responses: Vec<QuestionnaireResponse>) -> HashMap<(String,
 }
 
 fn assign_shortlists(
-    ids: &[String],
+    ids: &[&str],
     pairs: &HashMap<(String, String), f32>,
     rng: &mut ThreadRng,
 ) -> HashMap<String, Vec<(String, f32)>> {
@@ -518,23 +518,30 @@ fn assign_shortlists(
     let mut shortlists: HashMap<String, Vec<(String, f32)>> = HashMap::new();
 
     // # Precompute each person's ranked candidate list (descending score)
-    let mut ranked_candidates = HashMap::new();
-    for pid in ids {
-        let mut candidates = vec![];
-        for ((a, b), &s) in pairs {
-            if a == pid {
-                candidates.push((b.clone(), s));
-            } else if b == pid {
-                candidates.push((a.clone(), s));
-            }
-        }
+    let mut ranked_candidates: HashMap<String, Vec<(String, f32)>> = HashMap::new();
 
+    for ((a, b), &s) in pairs {
+        ranked_candidates
+            .entry(a.clone())
+            .or_default()
+            .push((b.clone(), s));
+        ranked_candidates
+            .entry(b.clone())
+            .or_default()
+            .push((a.clone(), s));
+    }
+
+    // Ensure every id has an entry, even people who are not in pairs (only one of their gender, or dealbreakers that exclude everyone else)
+    for pid in ids {
+        ranked_candidates.entry(pid.to_string()).or_default();
+    }
+
+    for value in ranked_candidates.values_mut() {
         // Reverse sort, so largest scores come first.
-        candidates.sort_unstable_by(|a, b| {
+        value.sort_unstable_by(|a, b| {
             b.1.partial_cmp(&a.1)
                 .expect("Should be able to compare floats")
         });
-        ranked_candidates.insert(pid.clone(), candidates);
     }
 
     let mut incomplete: HashSet<_> = ids.iter().collect();
@@ -546,7 +553,7 @@ fn assign_shortlists(
         let mut made_progress = false;
         for pid in order {
             if shortlists
-                .get(pid)
+                .get(*pid)
                 .is_some_and(|a| a.len() >= TARGET_SHORTLIST as usize)
             {
                 incomplete.remove(&pid);
@@ -557,7 +564,7 @@ fn assign_shortlists(
                 next_available(pid, cap, &ranked_candidates, &shortlists, &appearance_count)
             {
                 shortlists
-                    .entry(pid.clone())
+                    .entry(pid.to_string())
                     .or_insert(vec![])
                     .push((other_id.clone(), score));
                 *appearance_count.entry(other_id.clone()).or_default() += 1;
@@ -574,7 +581,7 @@ fn assign_shortlists(
             for pid in order {
                 const MIN_SHORTLIST: u8 = 3;
                 if shortlists
-                    .get(pid)
+                    .get(*pid)
                     .is_some_and(|a| a.len() >= MIN_SHORTLIST as usize)
                 {
                     incomplete.remove(&pid);
@@ -584,7 +591,7 @@ fn assign_shortlists(
                     next_available(pid, cap, &ranked_candidates, &shortlists, &appearance_count)
                 {
                     shortlists
-                        .entry(pid.clone())
+                        .entry(pid.to_string())
                         .or_insert(vec![])
                         .push((other_id.clone(), score));
                     *appearance_count.entry(other_id.clone()).or_default() += 1;

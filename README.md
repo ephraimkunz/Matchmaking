@@ -76,3 +76,7 @@ Follow steps 1-4 above. Then:
 6. `cargo test` runs tests. `cargo fmt` runs code formatter. `cargo clippy` runs linter.
 7. After pushing changes to Github, create a release and the publish_release Github workflow will automatically kickoff builds for macOS, Windows, and Linux and attach the built artifacts to the release.
 
+### Profiling performance
+1. `cargo build --profile profiling`
+2. `samply record ./target/profiling/matchmaking <path to csv>`
+
