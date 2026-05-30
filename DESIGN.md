@@ -306,7 +306,7 @@ For every participant, sort surviving opposite-sex candidates by `mutual_score` 
 
 Each round, shuffle the order of incomplete participants, then give each person their next-best available candidate — skipping anyone already on their shortlist, and skipping anyone who has been picked `--max-appearances` times. Iterate until every shortlist reaches `--target-shortlist` length, or a full pass makes no progress.
 
-If the algorithm stalls, raise the cap to `--max-appearances-relaxed` and run additional passes until exhausted, settling for at least `--min-shortlist` rather than `--target-shortlist`. All four values are tunable CLI flags with sensible defaults for the 100–200 person use case.
+If the algorithm stalls at the current cap, the cap is raised by one and the process repeats — always targeting `--target-shortlist`, never settling for less. This continues until either every shortlist is full, or the cap has reached `--max-appearances-relaxed` and no further progress is possible. All three values are tunable CLI flags with sensible defaults for the 100–200 person use case.
 
 The per-round shuffle prevents any single person from systematically getting first pick. The appearance cap prevents a few popular profiles from absorbing every shortlist.
 
@@ -347,7 +347,7 @@ Each card lists the matched person's name, email, and the free-response hooks th
 | E at `SELF_DESCRIPTION_SECTION_WEIGHT` (0.6) | The 8 cross-matched E items score twice (direct + F cross-match); the lower weight compensates. |
 | Children count at `NUM_CHILDREN_QUESTION_WEIGHT` × `LIFESTYLE_MONEY_SECTION_WEIGHT` | A real signal, but a conversation — not an automatic disqualification. |
 | Round-robin with per-round shuffle | Eliminates first-pick order bias. |
-| `--max-appearances` cap, relaxed to `--max-appearances-relaxed` | Prevents popular profiles from dominating every shortlist; tunable for different pool sizes. |
+| `--max-appearances` cap, ramped +1 per stall to `--max-appearances-relaxed` | Prevents popular profiles from dominating every shortlist; quality degrades as little as necessary before expanding capacity. |
 | No Gale-Shapley | Stable matching requires full mutual rankings; impractical at this scale. Shortlists are sufficient for the speed-dating event. |
 
 ## Open questions / TODO

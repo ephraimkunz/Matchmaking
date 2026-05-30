@@ -26,10 +26,8 @@ pub struct Diagnostics {
     pub dealbreaker_by_religion: usize,
     // Convergence
     pub cap_relaxed: bool,
-    pub shortlist_full: usize,
-    pub shortlist_acceptable: usize,
-    pub shortlist_under_min: usize,
-    pub shortlist_empty: usize,
+    /// Exact count of people with each shortlist length. Index = length; len = `target_shortlist` + 1.
+    pub shortlist_len_histogram: Vec<usize>,
     pub appearance_max: usize,
     pub appearance_stddev: f32,
     pub zero_appearance_participants: usize,
@@ -53,10 +51,7 @@ impl Default for Diagnostics {
             dealbreaker_by_marriage_timeline: 0,
             dealbreaker_by_religion: 0,
             cap_relaxed: false,
-            shortlist_full: 0,
-            shortlist_acceptable: 0,
-            shortlist_under_min: 0,
-            shortlist_empty: 0,
+            shortlist_len_histogram: Vec::new(),
             appearance_max: 0,
             appearance_stddev: 0.0,
             zero_appearance_participants: 0,
@@ -107,24 +102,26 @@ impl Display for Diagnostics {
         )?;
         writeln!(
             f,
-            "shortlist_full: {}\t(people whose shortlist reached the target size)",
-            self.shortlist_full
+            "shortlist_length_histogram: (exact count of people with each shortlist length; 0 = no matches, last bucket = full target)"
         )?;
-        writeln!(
-            f,
-            "shortlist_acceptable: {}\t(people with shortlists at or above the minimum but not full; some quality loss)",
-            self.shortlist_acceptable
-        )?;
-        writeln!(
-            f,
-            "shortlist_under_min: {}\t(people whose shortlists are below the minimum acceptable size; the relaxed retry couldn't fill them)",
-            self.shortlist_under_min
-        )?;
-        writeln!(
-            f,
-            "shortlist_empty: {}\t(people who got no matches as a subject; usually means no opposite-gender candidates passed their dealbreakers)",
-            self.shortlist_empty
-        )?;
+        let max_len_count = *self.shortlist_len_histogram.iter().max().unwrap_or(&1);
+        let target_len = self.shortlist_len_histogram.len().saturating_sub(1);
+        for (length, &count) in self.shortlist_len_histogram.iter().enumerate() {
+            let label = if length == 0 {
+                format!("{length} (no matches)")
+            } else if length == target_len {
+                format!("{length} (full)")
+            } else {
+                format!("{length}")
+            };
+            let bar_len = if max_len_count == 0 {
+                0
+            } else {
+                count * BAR_WIDTH / max_len_count
+            };
+            let bar: String = "#".repeat(bar_len);
+            writeln!(f, "  {label:<12} | {bar:<BAR_WIDTH$}  {count}")?;
+        }
         writeln!(
             f,
             "appearance_max: {}\t(the most times any one person was picked; should sit at the cap when the pool is tight)",
@@ -137,7 +134,7 @@ impl Display for Diagnostics {
         )?;
         writeln!(
             f,
-            "zero_appearance_participants: {}\t(people no one's shortlist included (object side); distinct from shortlist_empty (subject side))",
+            "zero_appearance_participants: {}\t(people no one's shortlist included; see histogram index 0 for the subject-side complement)",
             self.zero_appearance_participants
         )?;
 
@@ -247,14 +244,12 @@ pub struct ShortlistMatch {
     score: f32,
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn create_matches(
     responses: &[QuestionnaireResponse],
     sort_shortlists_by_score: bool,
     print_scores: bool,
     collect_diagnostics: bool,
     target_shortlist: usize,
-    min_shortlist: usize,
     max_appearances: usize,
     max_appearances_relaxed: usize,
 ) -> (Matches, Option<Diagnostics>) {
@@ -274,7 +269,6 @@ pub fn create_matches(
         &mut rng,
         collect_diagnostics,
         target_shortlist,
-        min_shortlist,
         max_appearances,
         max_appearances_relaxed,
     );
@@ -336,12 +330,12 @@ pub fn create_matches(
         &pairs,
         &result,
         target_shortlist,
-        min_shortlist,
     );
 
     (result, diagnostics)
 }
 
+#[allow(clippy::too_many_lines)]
 fn build_diagnostics(
     pairs_stats: Option<PairsStats>,
     shortlist_stats: Option<ShortlistStats>,
@@ -349,23 +343,16 @@ fn build_diagnostics(
     pairs: &FxHashMap<(&str, &str), f32>,
     result: &Matches,
     target_shortlist: usize,
-    min_shortlist: usize,
 ) -> Option<Diagnostics> {
     let (ps, ss) = pairs_stats.zip(shortlist_stats)?;
     let total_participants = ids.len();
 
-    // Convergence: shortlist size buckets
-    let mut shortlist_full = 0usize;
-    let mut shortlist_acceptable = 0usize;
-    let mut shortlist_under_min = 0usize;
-    let mut shortlist_empty = 0usize;
+    // Convergence: exact histogram of shortlist lengths (index = length, value = # people).
+    // Lengths are bounded to [0, target_shortlist] since the loop never over-fills.
+    let mut shortlist_len_histogram = vec![0usize; target_shortlist + 1];
     for card in &result.cards {
-        match card.shortlist.len() {
-            n if n >= target_shortlist => shortlist_full += 1,
-            n if n >= min_shortlist => shortlist_acceptable += 1,
-            0 => shortlist_empty += 1,
-            _ => shortlist_under_min += 1,
-        }
+        let len = card.shortlist.len().min(target_shortlist);
+        shortlist_len_histogram[len] += 1;
     }
 
     // Appearance stats
@@ -454,10 +441,11 @@ fn build_diagnostics(
         .iter()
         .flat_map(|card| {
             card.shortlist.iter().map(|m| {
-                shortlist_index
-                    .get(m.email.as_str())
-                    .is_some_and(|their_list| their_list.contains(card.email.as_str()))
-                    as usize
+                usize::from(
+                    shortlist_index
+                        .get(m.email.as_str())
+                        .is_some_and(|their_list| their_list.contains(card.email.as_str())),
+                )
             })
         })
         .sum();
@@ -477,10 +465,7 @@ fn build_diagnostics(
         dealbreaker_by_marriage_timeline: ps.dealbreaker_by_marriage_timeline,
         dealbreaker_by_religion: ps.dealbreaker_by_religion,
         cap_relaxed: ss.cap_relaxed,
-        shortlist_full,
-        shortlist_acceptable,
-        shortlist_under_min,
-        shortlist_empty,
+        shortlist_len_histogram,
         appearance_max,
         appearance_stddev,
         zero_appearance_participants,
@@ -928,14 +913,56 @@ struct ShortlistStats {
 
 type Shortlists = FxHashMap<String, Vec<(String, f32)>>;
 
+/// Run one round of shortlist assignment: shuffle the incomplete set, then offer each person
+/// their next-best available candidate under the current cap. Returns true if at least one
+/// pick was made (progress), false if the round was completely blocked.
 #[allow(clippy::too_many_arguments)]
+fn run_round<'a>(
+    incomplete: &mut FxHashSet<&&'a str>,
+    rng: &mut ThreadRng,
+    target_shortlist: usize,
+    cap: usize,
+    ranked_candidates: &'a FxHashMap<&'a str, Vec<(&'a str, f32)>>,
+    shortlists: &mut FxHashMap<String, Vec<(String, f32)>>,
+    appearance_count: &mut FxHashMap<&'a str, usize>,
+    excess_ranks: &mut Vec<usize>,
+) -> bool {
+    let mut order: Vec<_> = incomplete.iter().copied().collect();
+    order.shuffle(rng);
+
+    let mut made_progress = false;
+    for pid in order {
+        if shortlists
+            .get(*pid)
+            .is_some_and(|sl| sl.len() >= target_shortlist)
+        {
+            incomplete.remove(&pid);
+            continue;
+        }
+
+        if let Some((other_id, score, rank)) =
+            next_available(pid, cap, ranked_candidates, shortlists, appearance_count)
+        {
+            let sl = shortlists
+                .entry(pid.to_string())
+                .or_insert(Vec::with_capacity(target_shortlist));
+            let position = sl.len() + 1;
+            sl.push((other_id.to_string(), score));
+            *appearance_count.entry(other_id).or_default() += 1;
+            excess_ranks.push((rank + 1).saturating_sub(position));
+            made_progress = true;
+        }
+    }
+
+    made_progress
+}
+
 fn assign_shortlists(
     ids: &[&str],
     pairs: &FxHashMap<(&str, &str), f32>,
     rng: &mut ThreadRng,
     collect_stats: bool,
     target_shortlist: usize,
-    min_shortlist: usize,
     max_appearances: usize,
     max_appearances_relaxed: usize,
 ) -> (Shortlists, Option<ShortlistStats>) {
@@ -977,68 +1004,36 @@ fn assign_shortlists(
 
     let mut incomplete: FxHashSet<_> = ids.iter().collect();
 
-    while !incomplete.is_empty() {
-        let mut order: Vec<_> = incomplete.iter().copied().collect();
-        order.shuffle(rng);
-
-        let mut made_progress = false;
-        for pid in order {
-            if shortlists
-                .get(*pid)
-                .is_some_and(|a| a.len() >= target_shortlist)
-            {
-                incomplete.remove(&pid);
-                continue;
-            }
-
-            if let Some((other_id, score, rank)) =
-                next_available(pid, cap, &ranked_candidates, &shortlists, &appearance_count)
-            {
-                let sl = shortlists
-                    .entry(pid.to_string())
-                    .or_insert(Vec::with_capacity(target_shortlist));
-                let position = sl.len() + 1;
-                sl.push((other_id.to_string(), score));
-                *appearance_count.entry(other_id).or_default() += 1;
-                excess_ranks.push((rank + 1).saturating_sub(position));
-                made_progress = true;
+    // Outer loop: raise the appearance cap by 1 each time we stall, up to max_appearances_relaxed.
+    // Always aim for target_shortlist — the cap grows only as needed to keep making progress.
+    'outer: loop {
+        // Inner loop: run rounds at the current cap until a full pass makes no progress.
+        loop {
+            let made_progress = run_round(
+                &mut incomplete,
+                rng,
+                target_shortlist,
+                cap,
+                &ranked_candidates,
+                &mut shortlists,
+                &mut appearance_count,
+                &mut excess_ranks,
+            );
+            if !made_progress {
+                break;
             }
         }
 
-        // If no progress was made this round, relax cap and retry until exhausted.
-        if !made_progress {
-            cap = max_appearances_relaxed;
-            loop {
-                let mut made_progress_relaxed = false;
-                let mut order: Vec<_> = incomplete.iter().copied().collect();
-                order.shuffle(rng);
-                for pid in order {
-                    if shortlists
-                        .get(*pid)
-                        .is_some_and(|a| a.len() >= min_shortlist)
-                    {
-                        incomplete.remove(&pid);
-                        continue;
-                    }
-                    if let Some((other_id, score, rank)) =
-                        next_available(pid, cap, &ranked_candidates, &shortlists, &appearance_count)
-                    {
-                        let sl = shortlists
-                            .entry(pid.to_string())
-                            .or_insert(Vec::with_capacity(min_shortlist));
-                        let position = sl.len() + 1;
-                        sl.push((other_id.to_string(), score));
-                        *appearance_count.entry(other_id).or_default() += 1;
-                        excess_ranks.push((rank + 1).saturating_sub(position));
-                        made_progress_relaxed = true;
-                        cap_relaxed = true;
-                    }
-                }
-                if !made_progress_relaxed {
-                    break;
-                }
-            }
-            break;
+        if incomplete.is_empty() {
+            break 'outer;
+        }
+
+        // Stalled at this cap. Raise by 1 if possible; otherwise capacity is exhausted.
+        if cap < max_appearances_relaxed {
+            cap += 1;
+            cap_relaxed = true;
+        } else {
+            break 'outer;
         }
     }
 
@@ -1462,7 +1457,7 @@ mod tests {
 
     #[test]
     fn test_empty_create_matches() {
-        let (matches, _) = create_matches(&[], true, true, false, 5, 3, 12, 14);
+        let (matches, _) = create_matches(&[], true, true, false, 5, 12, 14);
         assert_eq!(
             matches,
             Matches {
@@ -1480,7 +1475,6 @@ mod tests {
             true,
             false,
             5,
-            3,
             12,
             14,
         );
@@ -1516,7 +1510,7 @@ mod tests {
             },
             ..Default::default()
         };
-        let (matches, _) = create_matches(&[first, second], true, true, false, 5, 3, 12, 14);
+        let (matches, _) = create_matches(&[first, second], true, true, false, 5, 12, 14);
         assert_eq!(
             matches,
             Matches {
