@@ -9,11 +9,10 @@
 mod matching;
 mod parsing;
 
-use std::path::PathBuf;
-
 use anyhow::Result;
 use clap::Parser;
 use matching::Matches;
+use std::path::PathBuf;
 
 /// Generate shortlists of compatible dating partners, based on input dating questionnaire.
 #[derive(Parser, Debug)]
@@ -35,14 +34,15 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
     let matches = parse_and_generate_matches(&args)?;
-    matches.printable_format(args.print_scores, &mut std::io::stdout())?;
+    println!("{matches}");
     Ok(())
 }
 
 fn parse_and_generate_matches(args: &Args) -> Result<Matches> {
     let mut reader = csv::Reader::from_path(args.input_file_name.clone())?;
     let responses = parsing::parse_responses(&mut reader)?;
-    let matches = matching::create_matches(&responses, args.sort_shortlists_by_score);
+    let matches =
+        matching::create_matches(&responses, args.sort_shortlists_by_score, args.print_scores);
     Ok(matches)
 }
 
@@ -67,11 +67,7 @@ mod tests {
         ];
         let args = Args::try_parse_from(input).unwrap();
         let matches = parse_and_generate_matches(&args).unwrap();
-        let mut writer = vec![];
-        matches
-            .printable_format(args.print_scores, &mut writer)
-            .unwrap();
-        let output = std::str::from_utf8(&writer).unwrap();
+        let output = format!("{matches}");
 
         assert!(!output.is_empty());
         assert!(output.lines().collect_vec().len() > 100);

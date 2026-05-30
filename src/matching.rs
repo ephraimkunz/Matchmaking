@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::{Display, Formatter},
+};
 
 use itertools::Itertools;
 use rand::prelude::*;
@@ -11,34 +14,33 @@ use crate::parsing::{
 use anyhow::Result;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Matches(Vec<MatchCard>);
+pub struct Matches {
+    cards: Vec<MatchCard>,
+    print_scores: bool,
+}
 
-impl Matches {
-    pub fn printable_format<W: std::io::Write>(
-        &self,
-        print_scores: bool,
-        writer: &mut W,
-    ) -> Result<()> {
-        for card in &self.0 {
-            writeln!(writer, "{} ({})\n\nMatches:", card.name, card.email)?;
+impl Display for Matches {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        for card in &self.cards {
+            writeln!(f, "{} ({})\n\nMatches:", card.name, card.email)?;
             for (index, m) in card.shortlist.iter().enumerate() {
-                if print_scores {
-                    writeln!(writer, "\t{} ({}) ({})", m.name, m.email, m.score)?;
+                if self.print_scores {
+                    writeln!(f, "\t{} ({}) ({})", m.name, m.email, m.score)?;
                 } else {
-                    writeln!(writer, "\t{} ({})", m.name, m.email)?;
+                    writeln!(f, "\t{} ({})", m.name, m.email)?;
                 }
 
                 for (k, v) in &m.freeresponse.responses {
-                    writeln!(writer, "\t{k} {v}")?;
+                    writeln!(f, "\t{k} {v}")?;
                 }
 
                 if index < (card.shortlist.len() - 1) {
-                    writeln!(writer)?;
+                    writeln!(f)?;
                 }
             }
 
             writeln!(
-                writer,
+                f,
                 "\n========================================================================\n"
             )?;
         }
@@ -65,6 +67,7 @@ pub struct ShortlistMatch {
 pub fn create_matches(
     responses: &[QuestionnaireResponse],
     sort_shortlists_by_score: bool,
+    print_scores: bool,
 ) -> Matches {
     let mut rng = rand::rng();
 
@@ -122,7 +125,10 @@ pub fn create_matches(
 
     matches.sort_unstable_by_key(|m| m.email.clone());
 
-    Matches(matches)
+    Matches {
+        cards: matches,
+        print_scores,
+    }
 }
 
 /// Returns true of there are no dealbreakers a -> b, or b -> a, otherwise returns false.
@@ -1008,14 +1014,26 @@ mod tests {
 
     #[test]
     fn test_empty_create_matches() {
-        let matches = create_matches(&[], true);
-        assert_eq!(matches, Matches(vec![]))
+        let matches = create_matches(&[], true, true);
+        assert_eq!(
+            matches,
+            Matches {
+                cards: vec![],
+                print_scores: true
+            }
+        )
     }
 
     #[test]
     fn test_one_item_create_matches() {
-        let matches = create_matches(&[QuestionnaireResponse::default()], true);
-        assert_eq!(matches, Matches(vec![]))
+        let matches = create_matches(&[QuestionnaireResponse::default()], true, true);
+        assert_eq!(
+            matches,
+            Matches {
+                cards: vec![],
+                print_scores: true
+            }
+        )
     }
 
     #[test]
@@ -1035,35 +1053,38 @@ mod tests {
             },
             ..Default::default()
         };
-        let matches = create_matches(&[first, second], true);
+        let matches = create_matches(&[first, second], true, true);
         assert_eq!(
             matches,
-            Matches(vec![
-                MatchCard {
-                    name: "".to_string(),
-                    email: "first".to_string(),
-                    shortlist: vec![ShortlistMatch {
-                        name: "".to_string(),
-                        email: "second".to_string(),
-                        freeresponse: FreeResponse {
-                            responses: HashMap::new()
-                        },
-                        score: 1.0
-                    }]
-                },
-                MatchCard {
-                    name: "".to_string(),
-                    email: "second".to_string(),
-                    shortlist: vec![ShortlistMatch {
+            Matches {
+                cards: vec![
+                    MatchCard {
                         name: "".to_string(),
                         email: "first".to_string(),
-                        freeresponse: FreeResponse {
-                            responses: HashMap::new()
-                        },
-                        score: 1.0
-                    }]
-                }
-            ])
+                        shortlist: vec![ShortlistMatch {
+                            name: "".to_string(),
+                            email: "second".to_string(),
+                            freeresponse: FreeResponse {
+                                responses: HashMap::new()
+                            },
+                            score: 1.0
+                        }]
+                    },
+                    MatchCard {
+                        name: "".to_string(),
+                        email: "second".to_string(),
+                        shortlist: vec![ShortlistMatch {
+                            name: "".to_string(),
+                            email: "first".to_string(),
+                            freeresponse: FreeResponse {
+                                responses: HashMap::new()
+                            },
+                            score: 1.0
+                        }]
+                    }
+                ],
+                print_scores: true
+            }
         )
     }
 }
