@@ -72,7 +72,7 @@ pub fn create_matches(
     let mut rng = rand::rng();
 
     // Score all pairs
-    let pairs = build_scored_pairs(responses.to_owned());
+    let pairs = build_scored_pairs(responses);
 
     // Assign shortlists via round-robin
     let ids = responses
@@ -486,25 +486,26 @@ fn mutual_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f32 {
 /// Builds a hashmap of (male.id, female.id) -> score. No pairing will be in the map if
 /// there are dealbreakers on either side. Score takes into account how compatible each
 /// side is with the other, so no need for a reverse map (female.id, male.id) -> score.
-fn build_scored_pairs(responses: Vec<QuestionnaireResponse>) -> HashMap<(String, String), f32> {
-    let mut pairs = HashMap::new();
+fn build_scored_pairs(responses: &[QuestionnaireResponse]) -> HashMap<(&str, &str), f32> {
+    // Empircally good enough for 1000 people. Technically the capacity should be (responses / 2) ^ 2 assuming
+    // equal numbers of men and women. But dealbreakers shrink that down.
+    let mut pairs = HashMap::with_capacity(50000);
 
-    let (males, females): (Vec<QuestionnaireResponse>, Vec<QuestionnaireResponse>) = responses
-        .into_iter()
-        .partition(|r| match r.demographics.gender {
-            Gender::Male => true,
-            Gender::Female => false,
-        });
-
-    for male in &males {
-        for female in &females {
+    for male in responses
+        .iter()
+        .filter(|r| r.demographics.gender == Gender::Male)
+    {
+        for female in responses
+            .iter()
+            .filter(|r| r.demographics.gender == Gender::Female)
+        {
             if !passes_dealbreakers(male, female) {
                 continue;
             }
 
             let score = mutual_score(male, female);
 
-            pairs.insert((male.id().to_string(), female.id().to_string()), score);
+            pairs.insert((male.id(), female.id()), score);
         }
     }
 
@@ -513,7 +514,7 @@ fn build_scored_pairs(responses: Vec<QuestionnaireResponse>) -> HashMap<(String,
 
 fn assign_shortlists(
     ids: &[&str],
-    pairs: &HashMap<(String, String), f32>,
+    pairs: &HashMap<(&str, &str), f32>,
     rng: &mut ThreadRng,
 ) -> HashMap<String, Vec<(String, f32)>> {
     const MAX_APPEARANCES: u8 = 12;
@@ -565,7 +566,7 @@ fn assign_shortlists(
             {
                 shortlists
                     .entry(pid.to_string())
-                    .or_insert(vec![])
+                    .or_insert(Vec::with_capacity(TARGET_SHORTLIST.into()))
                     .push((other_id.to_string(), score));
                 *appearance_count.entry(other_id).or_default() += 1;
                 made_progress = true;
@@ -592,7 +593,7 @@ fn assign_shortlists(
                 {
                     shortlists
                         .entry(pid.to_string())
-                        .or_insert(vec![])
+                        .or_insert(Vec::with_capacity(TARGET_SHORTLIST.into()))
                         .push((other_id.to_string(), score));
                     *appearance_count.entry(other_id).or_default() += 1;
                 }
