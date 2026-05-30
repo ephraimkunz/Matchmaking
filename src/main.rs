@@ -39,8 +39,8 @@ struct Args {
     target_shortlist: usize,
 
     /// The minimum length of each person's shortlist. The algorithm will strive for the target, but if it
-    /// can't be satisfied it will relax the max_appearances and try to reach at least this length of shortlist. Should always be
-    /// smaller than target_shortlist.
+    /// can't be satisfied it will relax the `max_appearances` and try to reach at least this length of shortlist. Should always be
+    /// smaller than `target_shortlist`.
     #[arg(short, long, default_value_t = 3)]
     min_shortlist: usize,
 
@@ -49,7 +49,7 @@ struct Args {
     max_appearances: usize,
 
     /// The relaxed number of shortlists someone should appear on. If the algorithm can't satisfy the target shortlist,
-    /// it will relax this to try to at least reach shortlists of length min_shortlist. Should always be larger than max_appearances.
+    /// it will relax this to try to at least reach shortlists of length `min_shortlist`. Should always be larger than `max_appearances`.
     #[arg(short = 'r', long, default_value_t = 10)]
     max_appearances_relaxed: usize,
 }

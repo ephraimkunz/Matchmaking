@@ -199,6 +199,7 @@ pub struct ShortlistMatch {
     score: f32,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn create_matches(
     responses: &[QuestionnaireResponse],
     sort_shortlists_by_score: bool,
@@ -752,7 +753,8 @@ fn directional_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f3
 }
 
 /// Calculated the mutual score of a and b in a non-directional way, so that a's compatibility
-/// with b and b's compatibility with a are both contained in a single score.fn mutual_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f32 {
+/// with b and b's compatibility with a are both contained in a single score.
+fn mutual_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f32 {
     let ab = directional_score(a, b);
     let ba = directional_score(b, a);
 
@@ -821,7 +823,7 @@ fn build_scored_pairs(
                         DealbreakerCause::WantsChildren => s.dealbreaker_by_wants_children += 1,
                         DealbreakerCause::StayLocal => s.dealbreaker_by_stay_local += 1,
                         DealbreakerCause::MarriageTimeline => {
-                            s.dealbreaker_by_marriage_timeline += 1
+                            s.dealbreaker_by_marriage_timeline += 1;
                         }
                         DealbreakerCause::Religion => s.dealbreaker_by_religion += 1,
                     }
@@ -861,6 +863,7 @@ struct ShortlistStats {
 
 type Shortlists = FxHashMap<String, Vec<(String, f32)>>;
 
+#[allow(clippy::too_many_arguments)]
 fn assign_shortlists(
     ids: &[&str],
     pairs: &FxHashMap<(&str, &str), f32>,
