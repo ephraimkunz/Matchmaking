@@ -66,6 +66,74 @@ Matches:
 ```
 By default the order of the shortlist for a person will be a random shuffling of their top matches, and the scores will not be printed. They can be shuffled by score and the scores can be printed by toggling commandline options.
 
+An important command-line option is `-d`, which prints diagnostics and will see how high of quality a run is and what tuning it might need:
+```
+POOL  is the input usable?
+  male_count                  50
+  female_count                50
+  pairs_scored               944
+  dealbreaker_eliminated    1556
+    wants_children            90
+    stay_local               272
+    marriage_timeline        131
+    religion                1063
+
+  pairs_scored: (male, female) pairs that survived all dealbreakers and got a score
+  dealbreaker_eliminated: pairs rejected before scoring due to dealbreakers
+
+CONVERGENCE  did the algorithm finish cleanly?
+  cap_relaxed             true
+  appearance_max            10
+  appearance_stddev       2.75
+  zero_appearances           7
+
+  shortlist lengths
+    0 (no matches)  |                                                     0
+    1               |                                                     1
+    2               | #                                                   2
+    3               | ##                                                  4
+    4               | ####                                                8
+    5 (full)        | ##################################################  85
+
+  cap_relaxed: true if the appearance cap had to be raised to make progress; true = pool was tight and quality may have suffered
+  appearance_max: the most times any one person was picked; should sit at the cap when the pool is tight
+  appearance_stddev: spread of pick counts; low = even distribution, high = a few popular people absorbed many picks while others got none
+  zero_appearances: people no one's shortlist included; see histogram index 0 for the subject-side complement
+  shortlist lengths: exact count of people with each shortlist length; 0 = no matches, last bucket = full target
+
+QUALITY  is the output good?
+  rank_regret_mean      0.34
+  rank_regret_p95          2
+  mutual_rate          65.8%
+
+  score distribution
+    0.553-0.562     | ###                                                 4
+    0.562-0.571     |                                                     1
+    0.571-0.579     | #                                                   2
+    0.579-0.588     | #####                                               7
+    0.588-0.597     | ##########                                          13
+    0.597-0.605     | ##########                                          13
+    0.605-0.614     | ############                                        16
+    0.614-0.623     | ################################                    41
+    0.623-0.632     | #################################                   42
+    0.632-0.640     | ############################################        56
+    0.640-0.649     | ##################################################  63
+    0.649-0.658     | ######################################              49
+    0.658-0.666     | ############################################        56
+    0.666-0.675     | ##################################                  44
+    0.675-0.684     | ##################                                  23
+    0.684-0.693     | ###################                                 24
+    0.693-0.701     | #########                                           12
+    0.701-0.710     | ###                                                 4
+    0.710-0.719     |                                                     0
+    0.719-0.727     | ###                                                 4
+
+  rank_regret_mean: extra candidates skipped per pick because higher-ranked options were at the appearance cap. 0 = every pick was the best still-available match; 2 = on average the cap forced 2 better candidates to be skipped before each pick. Larger means the cap is biting harder.
+  rank_regret_p95: same skip-count, 95th percentile. A small mean with a large p95 means most picks were unblocked but a few people had popular candidates capped out and got pushed deep into their list.
+  mutual_rate: fraction of shortlist entries where B is also on A's list; 100% = every match is mutual, low values mean many one-sided introductions
+  score distribution: distribution of scores that were actually served, auto-ranged to the observed [min, max]; mass in high buckets is healthy, weight in low buckets means someone got a poor match
+```
+
 ## Matchmaking development
 Follow steps 1-4 above. Then:
 1. Install git if necessary

@@ -68,42 +68,68 @@ impl Display for Diagnostics {
     #[allow(clippy::too_many_lines)]
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         const BAR_WIDTH: usize = 50;
-        writeln!(f, "== Pool (is the input usable?) ==")?;
-        writeln!(f, "male_count: {}", self.male_count)?;
-        writeln!(f, "female_count: {}", self.female_count)?;
+        const HIST_LABEL_W: usize = 15; // wide enough for "0 (no matches)"
+        // POOL: label col 24, value col 6; sub-item label col 22
+        const P_LW: usize = 24;
+        const P_VW: usize = 6;
+        const P_SW: usize = 22;
+        // CONVERGENCE: label col 20, value col 8
+        const C_LW: usize = 20;
+        const C_VW: usize = 8;
+        // QUALITY: label col 18, value col 8
+        const Q_LW: usize = 18;
+        const Q_VW: usize = 8;
+        writeln!(f, "POOL  is the input usable?")?;
+        writeln!(f, "  {:<P_LW$}{:>P_VW$}", "male_count", self.male_count)?;
+        writeln!(f, "  {:<P_LW$}{:>P_VW$}", "female_count", self.female_count)?;
+        writeln!(f, "  {:<P_LW$}{:>P_VW$}", "pairs_scored", self.pairs_scored)?;
         writeln!(
             f,
-            "pairs_scored: {}\t((male, female) pairs that survived all dealbreakers and got a score)",
-            self.pairs_scored
+            "  {:<P_LW$}{:>P_VW$}",
+            "dealbreaker_eliminated", self.dealbreaker_eliminated
         )?;
         writeln!(
             f,
-            "dealbreaker_eliminated: {}\t(pairs rejected before scoring due to dealbreakers)",
-            self.dealbreaker_eliminated
+            "    {:<P_SW$}{:>P_VW$}",
+            "wants_children", self.dealbreaker_by_wants_children
         )?;
         writeln!(
             f,
-            "  by wants_children: {}",
-            self.dealbreaker_by_wants_children
+            "    {:<P_SW$}{:>P_VW$}",
+            "stay_local", self.dealbreaker_by_stay_local
         )?;
-        writeln!(f, "  by stay_local: {}", self.dealbreaker_by_stay_local)?;
         writeln!(
             f,
-            "  by marriage_timeline: {}",
-            self.dealbreaker_by_marriage_timeline
+            "    {:<P_SW$}{:>P_VW$}",
+            "marriage_timeline", self.dealbreaker_by_marriage_timeline
         )?;
-        writeln!(f, "  by religion: {}", self.dealbreaker_by_religion)?;
+        writeln!(
+            f,
+            "    {:<P_SW$}{:>P_VW$}",
+            "religion", self.dealbreaker_by_religion
+        )?;
+        writeln!(f)?;
+        writeln!(f, "  pairs_scored: (male, female) pairs that survived all dealbreakers and got a score")?;
+        writeln!(f, "  dealbreaker_eliminated: pairs rejected before scoring due to dealbreakers")?;
 
-        writeln!(f, "\n== Convergence (did the algorithm finish cleanly?) ==")?;
+        // ── CONVERGENCE ───────────────────────────────────────────────────────
+        writeln!(f, "\nCONVERGENCE  did the algorithm finish cleanly?")?;
+        writeln!(f, "  {:<C_LW$}{:>C_VW$}", "cap_relaxed", self.cap_relaxed)?;
+        writeln!(f, "  {:<C_LW$}{:>C_VW$}", "appearance_max", self.appearance_max)?;
         writeln!(
             f,
-            "cap_relaxed: {}\t(true if the appearance cap had to be raised to make progress; true = pool was tight and quality may have suffered)",
-            self.cap_relaxed
+            "  {:<C_LW$}{:>C_VW$}",
+            "appearance_stddev",
+            format!("{:.2}", self.appearance_stddev)
         )?;
         writeln!(
             f,
-            "shortlist_length_histogram: (exact count of people with each shortlist length; 0 = no matches, last bucket = full target)"
+            "  {:<C_LW$}{:>C_VW$}",
+            "zero_appearances",
+            self.zero_appearance_participants
         )?;
+        writeln!(f)?;
+        writeln!(f, "  shortlist lengths")?;
         let max_len_count = *self.shortlist_len_histogram.iter().max().unwrap_or(&1);
         let target_len = self.shortlist_len_histogram.len().saturating_sub(1);
         for (length, &count) in self.shortlist_len_histogram.iter().enumerate() {
@@ -120,31 +146,34 @@ impl Display for Diagnostics {
                 count * BAR_WIDTH / max_len_count
             };
             let bar: String = "#".repeat(bar_len);
-            writeln!(f, "  {label:<12} | {bar:<BAR_WIDTH$}  {count}")?;
+            writeln!(f, "    {label:<HIST_LABEL_W$} | {bar:<BAR_WIDTH$}  {count}")?;
         }
-        writeln!(
-            f,
-            "appearance_max: {}\t(the most times any one person was picked; should sit at the cap when the pool is tight)",
-            self.appearance_max
-        )?;
-        writeln!(
-            f,
-            "appearance_stddev: {:.2}\t(spread of pick counts; low = even distribution, high = a few popular people absorbed many picks while others got none)",
-            self.appearance_stddev
-        )?;
-        writeln!(
-            f,
-            "zero_appearance_participants: {}\t(people no one's shortlist included; see histogram index 0 for the subject-side complement)",
-            self.zero_appearance_participants
-        )?;
+        writeln!(f)?;
+        writeln!(f, "  cap_relaxed: true if the appearance cap had to be raised to make progress; true = pool was tight and quality may have suffered")?;
+        writeln!(f, "  appearance_max: the most times any one person was picked; should sit at the cap when the pool is tight")?;
+        writeln!(f, "  appearance_stddev: spread of pick counts; low = even distribution, high = a few popular people absorbed many picks while others got none")?;
+        writeln!(f, "  zero_appearances: people no one's shortlist included; see histogram index 0 for the subject-side complement")?;
+        writeln!(f, "  shortlist lengths: exact count of people with each shortlist length; 0 = no matches, last bucket = full target")?;
 
-        writeln!(f, "\n== Quality (is the output good?) ==")?;
+        // ── QUALITY ───────────────────────────────────────────────────────────
+        writeln!(f, "\nQUALITY  is the output good?")?;
         writeln!(
             f,
-            "shortlisted_score_histogram: (distribution of scores that were actually served, auto-ranged to the observed [min, max]; mass in high buckets is healthy, weight in low buckets means someone got a poor match)"
+            "  {:<Q_LW$}{:>Q_VW$}",
+            "rank_regret_mean",
+            format!("{:.2}", self.rank_regret_mean)
         )?;
+        writeln!(f, "  {:<Q_LW$}{:>Q_VW$}", "rank_regret_p95", self.rank_regret_p95)?;
+        writeln!(
+            f,
+            "  {:<Q_LW$}{:>Q_VW$}",
+            "mutual_rate",
+            format!("{:.1}%", self.mutual_rate * 100.0)
+        )?;
+        writeln!(f)?;
+        writeln!(f, "  score distribution")?;
         match self.histogram_range {
-            None => writeln!(f, "  (no scores served)")?,
+            None => writeln!(f, "    (no scores served)")?,
             Some((lo, hi)) => {
                 let width = (hi - lo) / HISTOGRAM_BUCKETS as f32;
                 let max_count = *self.histogram.iter().max().unwrap_or(&1);
@@ -162,25 +191,15 @@ impl Display for Diagnostics {
                         count * BAR_WIDTH / max_count
                     };
                     let bar: String = "#".repeat(bar_len);
-                    writeln!(f, "  {label} | {bar:<BAR_WIDTH$}  {count}")?;
+                    writeln!(f, "    {label:<HIST_LABEL_W$} | {bar:<BAR_WIDTH$}  {count}")?;
                 }
             }
         }
-        writeln!(
-            f,
-            "rank_regret_mean: {:.2}\t(extra candidates skipped per pick because higher-ranked options were at the appearance cap. 0 = every pick was the best still-available match; 2 = on average the cap forced 2 better candidates to be skipped before each pick. Larger means the cap is biting harder.)",
-            self.rank_regret_mean
-        )?;
-        writeln!(
-            f,
-            "rank_regret_p95: {}\t(same skip-count, 95th percentile. A small mean with a large p95 means most picks were unblocked but a few people had popular candidates capped out and got pushed deep into their list.)",
-            self.rank_regret_p95
-        )?;
-        writeln!(
-            f,
-            "mutual_rate: {:.1}%\t(fraction of shortlist entries where B is also on A's list; 100% = every match is mutual, low values mean many one-sided introductions)",
-            self.mutual_rate * 100.0
-        )?;
+        writeln!(f)?;
+        writeln!(f, "  rank_regret_mean: extra candidates skipped per pick because higher-ranked options were at the appearance cap. 0 = every pick was the best still-available match; 2 = on average the cap forced 2 better candidates to be skipped before each pick. Larger means the cap is biting harder.")?;
+        writeln!(f, "  rank_regret_p95: same skip-count, 95th percentile. A small mean with a large p95 means most picks were unblocked but a few people had popular candidates capped out and got pushed deep into their list.")?;
+        writeln!(f, "  mutual_rate: fraction of shortlist entries where B is also on A's list; 100% = every match is mutual, low values mean many one-sided introductions")?;
+        writeln!(f, "  score distribution: distribution of scores that were actually served, auto-ranged to the observed [min, max]; mass in high buckets is healthy, weight in low buckets means someone got a poor match")?;
         Ok(())
     }
 }
