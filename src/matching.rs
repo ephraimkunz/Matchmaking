@@ -32,9 +32,9 @@ pub struct Diagnostics {
     pub appearance_stddev: f32,
     pub zero_appearance_participants: usize,
     // Quality
-    pub histogram: [usize; 6], // <0.5, 0.5-0.6, 0.6-0.7, 0.7-0.8, 0.8-0.9, >=0.9
-    pub regret_mean: f32,
-    pub regret_p95: f32,
+    pub histogram: [usize; 21], // 0.05-wide buckets from 0.00 to 1.00, last bucket is >=1.00
+    pub rank_regret_mean: f32,
+    pub rank_regret_p95: usize,
 }
 
 impl Display for Diagnostics {
@@ -94,7 +94,7 @@ impl Display for Diagnostics {
         )?;
         writeln!(
             f,
-            "appearance_max: {}\t(the most times any one person was picked; should sit at or just below the appearance cap when load is balanced)",
+            "appearance_max: {}\t(the most times any one person was picked; should sit at the cap when the pool is tight)",
             self.appearance_max
         )?;
         writeln!(
@@ -113,11 +113,13 @@ impl Display for Diagnostics {
             f,
             "shortlisted_score_histogram: (distribution of scores that were actually served; mass in high buckets is healthy, weight in low buckets means someone got a poor match)"
         )?;
-        let labels = [
-            "<0.5   ", "0.5-0.6", "0.6-0.7", "0.7-0.8", "0.8-0.9", ">=0.9  ",
-        ];
         let max_count = *self.histogram.iter().max().unwrap_or(&1);
-        for (label, &count) in labels.iter().zip(self.histogram.iter()) {
+        for (i, &count) in self.histogram.iter().enumerate() {
+            let label = if i < 20 {
+                format!("{:.2}-{:.2}", i as f32 * 0.05, (i + 1) as f32 * 0.05)
+            } else {
+                ">=1.00 ".to_string()
+            };
             let bar_len = if max_count == 0 {
                 0
             } else {
@@ -128,13 +130,13 @@ impl Display for Diagnostics {
         }
         writeln!(
             f,
-            "regret_mean: {:.3}\t(average gap between each person's best possible score and the best score they were actually served; 0 = everyone got their algorithmic best, larger = cap or shuffle pushed them away)",
-            self.regret_mean
+            "rank_regret_mean: {:.2}\t(extra candidates skipped per pick because higher-ranked options were at the appearance cap. 0 = every pick was the best still-available match; 2 = on average the cap forced 2 better candidates to be skipped before each pick. Larger means the cap is biting harder.)",
+            self.rank_regret_mean
         )?;
         writeln!(
             f,
-            "regret_p95: {:.3}\t(95th percentile of that gap; catches the worst cases the mean hides — a large p95 with a small mean means a few people were significantly downgraded)",
-            self.regret_p95
+            "rank_regret_p95: {}\t(same skip-count, 95th percentile. A small mean with a large p95 means most picks were unblocked but a few people had popular candidates capped out and got pushed deep into their list.)",
+            self.rank_regret_p95
         )?;
         Ok(())
     }
@@ -338,52 +340,32 @@ fn build_diagnostics(
         / total_participants.max(1) as f32;
     let appearance_stddev = variance.sqrt();
 
-    // Quality: histogram of shortlisted scores
-    let mut histogram = [0usize; 6];
+    // Quality: histogram of shortlisted scores (0.05-wide buckets)
+    let mut histogram = [0usize; 21];
     for card in &result.cards {
         for m in &card.shortlist {
-            let idx = match m.score {
-                s if s < 0.5 => 0,
-                s if s < 0.6 => 1,
-                s if s < 0.7 => 2,
-                s if s < 0.8 => 3,
-                s if s < 0.9 => 4,
-                _ => 5,
-            };
+            let idx = ((m.score / 0.05).floor() as usize).min(20);
             histogram[idx] += 1;
         }
     }
 
-    // Regret: gap between each person's best possible pool score and their best served score.
-    // Includes people with empty shortlists who had pool candidates (regret = top_pool - 0).
-    // Only excludes people with no pool candidates at all (not in top_pool_scores).
-    let mut regrets: Vec<f32> = result
-        .cards
-        .iter()
-        .filter_map(|card| {
-            let top_pool = *ps.top_pool_scores.get(&card.email)?;
-            let top_served = card
-                .shortlist
-                .iter()
-                .map(|m| m.score)
-                .fold(0.0_f32, f32::max);
-            Some((top_pool - top_served).max(0.0))
-        })
-        .collect();
-    let regret_mean = if regrets.is_empty() {
+    // Rank-regret: for each served pick, how many candidates were skipped because
+    // they were at the appearance cap (excess over the minimum possible rank).
+    let mut excess_ranks: Vec<usize> = ss.served_excess_ranks.clone();
+    let rank_regret_mean = if excess_ranks.is_empty() {
         0.0
     } else {
-        regrets.iter().sum::<f32>() / regrets.len() as f32
+        excess_ranks.iter().sum::<usize>() as f32 / excess_ranks.len() as f32
     };
-    let regret_p95 = if regrets.is_empty() {
-        0.0
+    let rank_regret_p95 = if excess_ranks.is_empty() {
+        0
     } else {
-        let p95_idx = (regrets.len() * 95)
+        let p95_idx = (excess_ranks.len() * 95)
             .div_ceil(100)
             .saturating_sub(1)
-            .min(regrets.len() - 1);
-        regrets.select_nth_unstable_by(p95_idx, |a, b| a.partial_cmp(b).expect("comparable"));
-        regrets[p95_idx]
+            .min(excess_ranks.len() - 1);
+        excess_ranks.select_nth_unstable(p95_idx);
+        excess_ranks[p95_idx]
     };
 
     Some(Diagnostics {
@@ -404,8 +386,8 @@ fn build_diagnostics(
         appearance_stddev,
         zero_appearance_participants,
         histogram,
-        regret_mean,
-        regret_p95,
+        rank_regret_mean,
+        rank_regret_p95,
     })
 }
 
@@ -776,7 +758,6 @@ struct PairsStats {
     dealbreaker_by_stay_local: usize,
     dealbreaker_by_marriage_timeline: usize,
     dealbreaker_by_religion: usize,
-    top_pool_scores: FxHashMap<String, f32>,
 }
 
 /// Builds a hashmap of (male.id, female.id) -> score. No pairing will be in the map if
@@ -808,7 +789,6 @@ fn build_scored_pairs(
             dealbreaker_by_stay_local: 0,
             dealbreaker_by_marriage_timeline: 0,
             dealbreaker_by_religion: 0,
-            top_pool_scores: FxHashMap::default(),
         })
     } else {
         None
@@ -833,23 +813,6 @@ fn build_scored_pairs(
 
             let score = mutual_score(male, female);
             pairs.insert((male.id(), female.id()), score);
-
-            if let Some(ref mut s) = stats {
-                let e = s
-                    .top_pool_scores
-                    .entry(male.id().to_string())
-                    .or_insert(0.0_f32);
-                if score > *e {
-                    *e = score;
-                }
-                let e = s
-                    .top_pool_scores
-                    .entry(female.id().to_string())
-                    .or_insert(0.0_f32);
-                if score > *e {
-                    *e = score;
-                }
-            }
         }
     }
 
@@ -859,6 +822,7 @@ fn build_scored_pairs(
 struct ShortlistStats {
     cap_relaxed: bool,
     appearance_count: FxHashMap<String, usize>,
+    served_excess_ranks: Vec<usize>,
 }
 
 type Shortlists = FxHashMap<String, Vec<(String, f32)>>;
@@ -878,6 +842,7 @@ fn assign_shortlists(
     let mut cap_relaxed = false;
     let mut appearance_count: FxHashMap<&str, usize> = FxHashMap::default();
     let mut shortlists: FxHashMap<String, Vec<(String, f32)>> = FxHashMap::default();
+    let mut excess_ranks: Vec<usize> = Vec::new();
 
     // Precompute each person's ranked candidate list (descending score)
     let mut ranked_candidates: FxHashMap<&str, Vec<(&str, f32)>> = FxHashMap::default();
@@ -925,14 +890,16 @@ fn assign_shortlists(
                 continue;
             }
 
-            if let Some((other_id, score)) =
+            if let Some((other_id, score, rank)) =
                 next_available(pid, cap, &ranked_candidates, &shortlists, &appearance_count)
             {
-                shortlists
+                let sl = shortlists
                     .entry(pid.to_string())
-                    .or_insert(Vec::with_capacity(target_shortlist))
-                    .push((other_id.to_string(), score));
+                    .or_insert(Vec::with_capacity(target_shortlist));
+                let position = sl.len() + 1;
+                sl.push((other_id.to_string(), score));
                 *appearance_count.entry(other_id).or_default() += 1;
+                excess_ranks.push((rank + 1).saturating_sub(position));
                 made_progress = true;
             }
         }
@@ -952,14 +919,16 @@ fn assign_shortlists(
                         incomplete.remove(&pid);
                         continue;
                     }
-                    if let Some((other_id, score)) =
+                    if let Some((other_id, score, rank)) =
                         next_available(pid, cap, &ranked_candidates, &shortlists, &appearance_count)
                     {
-                        shortlists
+                        let sl = shortlists
                             .entry(pid.to_string())
-                            .or_insert(Vec::with_capacity(min_shortlist))
-                            .push((other_id.to_string(), score));
+                            .or_insert(Vec::with_capacity(min_shortlist));
+                        let position = sl.len() + 1;
+                        sl.push((other_id.to_string(), score));
                         *appearance_count.entry(other_id).or_default() += 1;
+                        excess_ranks.push((rank + 1).saturating_sub(position));
                         made_progress_relaxed = true;
                         cap_relaxed = true;
                     }
@@ -980,6 +949,7 @@ fn assign_shortlists(
         Some(ShortlistStats {
             cap_relaxed,
             appearance_count: owned_appearance,
+            served_excess_ranks: excess_ranks,
         })
     } else {
         None
@@ -994,8 +964,8 @@ fn next_available<'a>(
     ranked_candidates: &'a FxHashMap<&str, Vec<(&str, f32)>>,
     shortlists: &FxHashMap<String, Vec<(String, f32)>>,
     appearance_count: &FxHashMap<&str, usize>,
-) -> Option<(&'a str, f32)> {
-    for (other_id, score) in &ranked_candidates[pid] {
+) -> Option<(&'a str, f32, usize)> {
+    for (rank, (other_id, score)) in ranked_candidates[pid].iter().enumerate() {
         if shortlists
             .get(pid)
             .is_some_and(|sl| sl.iter().any(|i| &i.0 == other_id))
@@ -1005,7 +975,7 @@ fn next_available<'a>(
         if appearance_count.get(other_id).copied().unwrap_or(0) >= current_cap {
             continue;
         }
-        return Some((other_id, *score));
+        return Some((other_id, *score, rank));
     }
 
     None
