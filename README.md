@@ -16,4 +16,5 @@ Follow steps 1-4 above. Then:
 4. `cd MatchMaking` then `cargo run -- --help` to build the project, run it, and see the available options.
 5. A full run against some data might look like `cargo run -- --sort-shortlists-by-score --print-scores <path to downloaded responses CSV>`
 6. `cargo test` runs tests. `cargo fmt` runs code formatter. `cargo clippy` runs linter.
+7. After pushing changes to Github, create a release and the publish_release Github workflow will automatically kickoff builds for macOS, Windows, and Linux and attach the built artifacts to the release.
 

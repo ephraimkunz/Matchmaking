@@ -1,0 +1,66 @@
+name: Publish Release
+
+on:
+  release:
+    types: [published]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  prepareReleaseLinux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build for release
+      run: cargo build --release --verbose
+    - name: Package for release
+      run: |
+        mkdir matchmaking-linux
+        cp target/release/matchmaking matchmaking-linux
+        zip -r matchmaking-linux.zip matchmaking-linux
+    - name: Publish release
+      uses: softprops/action-gh-release@v2.0.8
+      with:
+        files: |
+          matchmaking-linux.zip
+  prepareReleaseMacOS:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build for release
+      run: cargo build --release --verbose
+    - name: Package for release
+      run: |
+        mkdir matchmaking-macos
+        cp target/release/matchmaking matchmaking-macos
+        zip -r matchmaking-macos.zip matchmaking-macos
+    - name: Publish release
+      uses: softprops/action-gh-release@v2.0.8
+      with:
+        files: |
+          matchmaking-macos.zip
+  prepareReleaseWindows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build for release
+      run: cargo build --release --verbose
+    - name: Package for release
+      run: |
+        mkdir matchmaking-windows
+        cp target/release/matchmaking.exe matchmaking-windows
+        Compress-Archive matchmaking-windows matchmaking-windows.zip
+    - name: Publish release
+      uses: softprops/action-gh-release@v2.0.8
+      with:
+        files: |
+          matchmaking-windows.zip
+
+            
