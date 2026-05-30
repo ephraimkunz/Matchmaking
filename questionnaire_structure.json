@@ -10,7 +10,7 @@
   "settings": {
     "emailCollectionType": "RESPONDER_INPUT"
   },
-  "revisionId": "00000001",
+  "revisionId": "00000009",
   "responderUri": "https://docs.google.com/forms/d/e/1FAIpQLSerX0HD3UJ-Rp3rumQolthHkU-fTmEZbCiIiJBOjsY92e4Thw/viewform",
   "items": [
     {
@@ -792,7 +792,7 @@
             "low": 1,
             "high": 4,
             "lowLabel": "Never think about it",
-            "highLabel": "Never think about it"
+            "highLabel": "It matters to me"
           }
         }
       }
@@ -888,8 +888,8 @@
           "scaleQuestion": {
             "low": 1,
             "high": 4,
-            "lowLabel": "I hold back",
-            "highLabel": "I always speak up"
+            "lowLabel": "I can't sleep",
+            "highLabel": "I sleep just fine"
           }
         }
       }
@@ -1263,7 +1263,7 @@
           "scaleQuestion": {
             "low": 1,
             "high": 4,
-            "lowLabel": "Nev",
+            "lowLabel": "Disagree",
             "highLabel": "Agree"
           }
         }
@@ -1652,8 +1652,8 @@
           "scaleQuestion": {
             "low": 1,
             "high": 4,
-            "lowLabel": "Planner",
-            "highLabel": "Spontaneous"
+            "lowLabel": "Spontaneous",
+            "highLabel": "Planner"
           }
         }
       }
