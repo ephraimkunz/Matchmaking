@@ -1059,9 +1059,7 @@ mod tests {
                         shortlist: vec![ShortlistMatch {
                             name: "".to_string(),
                             email: "second".to_string(),
-                            freeresponse: FreeResponse {
-                                responses: HashMap::new()
-                            },
+                            freeresponse: FreeResponse { responses: vec![] },
                             score: 1.0
                         }]
                     },
@@ -1071,9 +1069,7 @@ mod tests {
                         shortlist: vec![ShortlistMatch {
                             name: "".to_string(),
                             email: "first".to_string(),
-                            freeresponse: FreeResponse {
-                                responses: HashMap::new()
-                            },
+                            freeresponse: FreeResponse { responses: vec![] },
                             score: 1.0
                         }]
                     }

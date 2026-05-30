@@ -1,9 +1,6 @@
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use itertools::Itertools;
-use std::{
-    collections::{HashMap, HashSet},
-    vec,
-};
+use std::{collections::HashSet, vec};
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct QuestionnaireResponse {
@@ -90,7 +87,7 @@ pub struct Interests {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct FreeResponse {
-    pub responses: HashMap<String, String>,
+    pub responses: Vec<(String, String)>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -683,7 +680,7 @@ fn parse_freeresponse<'i>(
                 Some((q_header.to_string(), q_value.to_string()))
             }
         })
-        .collect::<HashMap<String, String>>();
+        .collect();
 
     FreeResponse { responses }
 }
@@ -937,35 +934,35 @@ mod tests {
                     ]
                 },
                 freeresponse: FreeResponse {
-                    responses: HashMap::from([
+                    responses: Vec::from([
                         (
-                            "Niche interest most people don't know I have:".to_string(),
-                            "qwewefwef".to_string()
+                            "Unpopular opinion I stand by:".to_string(),
+                            "rgerg".to_string()
                         ),
                         (
                             "Something I've changed my mind about recently:".to_string(),
                             "hjkhjkhj".to_string()
                         ),
                         (
-                            "Something I'm better at than I let on:".to_string(),
-                            "dfgfdgdfg".to_string()
-                        ),
-                        (
                             "I could give a 10-minute talk on:".to_string(),
                             "ewfwef".to_string()
+                        ),
+                        (
+                            "My weekend usually looks like:".to_string(),
+                            "dfhfdh".to_string()
+                        ),
+                        (
+                            "Niche interest most people don't know I have:".to_string(),
+                            "qwewefwef".to_string()
+                        ),
+                        (
+                            "Something I'm better at than I let on:".to_string(),
+                            "dfgfdgdfg".to_string()
                         ),
                         (
                             "The thing I find most attractive in a person:".to_string(),
                             "jkkjy".to_string()
                         ),
-                        (
-                            "Unpopular opinion I stand by:".to_string(),
-                            "rgerg".to_string()
-                        ),
-                        (
-                            "My weekend usually looks like:".to_string(),
-                            "dfhfdh".to_string()
-                        )
                     ])
                 }
             }]
