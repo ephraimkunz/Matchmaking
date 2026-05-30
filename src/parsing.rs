@@ -63,7 +63,7 @@ pub struct SelfDescription {
     pub crossmatched: [FourChoiceResponse; 8],
 
     /// Direct comparison with corresponding SelfDescription.direct for partner candidate.
-    pub direct: [FourChoiceResponse; 7],
+    pub direct: [FourChoiceResponse; 15],
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -583,11 +583,7 @@ fn parse_selfdescription<'i>(
         .try_into()
         .map_err(|e| anyhow::anyhow!("Conversion of vec to array failed: {e:?}"))?;
 
-    let direct_indices = [4, 5, 6, 9, 12, 13, 14];
-    let direct: [FourChoiceResponse; 7] = direct_indices
-        .iter()
-        .map(|&i| responses[i].clone())
-        .collect::<Vec<_>>()
+    let direct: [FourChoiceResponse; 15] = responses
         .try_into()
         .map_err(|e| anyhow::anyhow!("Conversion of vec to array failed: {e:?}"))?;
     Ok(SelfDescription {
@@ -887,6 +883,14 @@ mod tests {
                         FourChoiceResponse(1)
                     ],
                     direct: [
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
+                        FourChoiceResponse(1),
                         FourChoiceResponse(1),
                         FourChoiceResponse(1),
                         FourChoiceResponse(1),
