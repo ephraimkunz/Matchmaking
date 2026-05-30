@@ -1,7 +1,6 @@
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
-use std::vec;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct QuestionnaireResponse {
@@ -205,7 +204,7 @@ impl FiveChoiceWeight {
             "Very" => 3,
             "We MUST agree on this" => 4,
             other => bail!(
-                "Unexpected imporance weight \"{other}\", expected \"I don't care if we agree\" or \"A little\" or \"Somewhat\" or \"Very\" or \"We MUST agree on this\""
+                "Unexpected importance weight \"{other}\", expected \"I don't care if we agree\" or \"A little\" or \"Somewhat\" or \"Very\" or \"We MUST agree on this\""
             ),
         };
         ensure!(
@@ -337,7 +336,7 @@ fn parse_demographics<'i>(
 ) -> Result<Demographics> {
     let (header, _) = header_and_field
         .next()
-        .ok_or_else(|| anyhow!("Unexpected reached the end of csv record"))?;
+        .ok_or_else(|| anyhow!("Unexpectedly reached the end of csv record"))?;
     ensure!(
         header == "Timestamp",
         "Unexpected header \"{header}\", expected \"Timestamp\""
@@ -345,7 +344,7 @@ fn parse_demographics<'i>(
 
     let (header, field) = header_and_field
         .next()
-        .ok_or_else(|| anyhow!("Unexpected reached the end of csv record"))?;
+        .ok_or_else(|| anyhow!("Unexpectedly reached the end of csv record"))?;
     ensure!(
         header == "Email Address",
         "Unexpected header \"{header}\", expected \"Email Address\""
@@ -354,7 +353,7 @@ fn parse_demographics<'i>(
 
     let (header, field) = header_and_field
         .next()
-        .ok_or_else(|| anyhow!("Unexpected reached the end of csv record"))?;
+        .ok_or_else(|| anyhow!("Unexpectedly reached the end of csv record"))?;
     ensure!(
         header == "First and last name",
         "Unexpected header \"{header}\", expected \"First and last name\""
@@ -363,7 +362,7 @@ fn parse_demographics<'i>(
 
     let (header, field) = header_and_field
         .next()
-        .ok_or_else(|| anyhow!("Unexpected reached the end of csv record"))?;
+        .ok_or_else(|| anyhow!("Unexpectedly reached the end of csv record"))?;
     ensure!(
         header == "Gender",
         "Unexpected header \"{header}\", expected \"Gender\""
@@ -376,7 +375,7 @@ fn parse_demographics<'i>(
 
     let (header, field) = header_and_field
         .next()
-        .ok_or_else(|| anyhow!("Unexpected reached the end of csv record"))?;
+        .ok_or_else(|| anyhow!("Unexpectedly reached the end of csv record"))?;
     ensure!(
         header == "Age",
         "Unexpected header \"{header}\", expected \"Age\""
@@ -396,7 +395,7 @@ fn parse_dealbreakers<'i>(
 ) -> Result<Dealbreakers> {
     let (header, field) = header_and_field
         .next()
-        .ok_or_else(|| anyhow!("Unexpected reached the end of csv record"))?;
+        .ok_or_else(|| anyhow!("Unexpectedly reached the end of csv record"))?;
     ensure!(
         header == "I want to have children",
         "Unexpected header \"{header}\", expected \"I want to have children\""
@@ -412,7 +411,7 @@ fn parse_dealbreakers<'i>(
 
     let (header, field) = header_and_field
         .next()
-        .ok_or_else(|| anyhow!("Unexpected reached the end of csv record"))?;
+        .ok_or_else(|| anyhow!("Unexpectedly reached the end of csv record"))?;
     ensure!(
         header == "I'd like to be married within",
         "Unexpected header \"{header}\", expected \"I'd like to be married within\""
@@ -428,7 +427,7 @@ fn parse_dealbreakers<'i>(
 
     let (header, field) = header_and_field
         .next()
-        .ok_or_else(|| anyhow!("Unexpected reached the end of csv record"))?;
+        .ok_or_else(|| anyhow!("Unexpectedly reached the end of csv record"))?;
     ensure!(
         header == "I intend to stay in Cache Valley long term",
         "Unexpected header \"{header}\", expected \"I intend to stay in Cache Valley long term\""
@@ -444,7 +443,7 @@ fn parse_dealbreakers<'i>(
 
     let (header, field) = header_and_field
         .next()
-        .ok_or_else(|| anyhow!("Unexpected reached the end of csv record"))?;
+        .ok_or_else(|| anyhow!("Unexpectedly reached the end of csv record"))?;
     ensure!(
         header == "My religious commitment level",
         "Unexpected header \"{header}\", expected \"My religious commitment level\""
@@ -453,7 +452,7 @@ fn parse_dealbreakers<'i>(
 
     let (header, field) = header_and_field
         .next()
-        .ok_or_else(|| anyhow!("Unexpected reached the end of csv record"))?;
+        .ok_or_else(|| anyhow!("Unexpectedly reached the end of csv record"))?;
     ensure!(
         header == "My partner's religious commitment level should be:",
         "Unexpected header \"{header}\", expected \"My partner's religious commitment level should be:\""
@@ -548,7 +547,7 @@ fn parse_lifestylemoney<'i>(
 
     let (header, field) = header_and_field
         .next()
-        .ok_or_else(|| anyhow!("Unexpected reached the end of csv record"))?;
+        .ok_or_else(|| anyhow!("Unexpectedly reached the end of csv record"))?;
     ensure!(
         header == "I'd like to have ___ child (children)",
         "Unexpected header \"{header}\", expected \"I'd like to have ___ child (children)\""

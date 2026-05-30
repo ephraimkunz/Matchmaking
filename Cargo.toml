@@ -10,3 +10,6 @@ csv = "1"
 itertools = "0.14"
 rand = "0.10"
 rustc-hash = "2.1.2"
+
+[profile.release]
+panic = "abort"

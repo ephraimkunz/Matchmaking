@@ -11,7 +11,7 @@ mod parsing;
 
 use anyhow::Result;
 use clap::Parser;
-use matching::Matches;
+use matching::{Diagnostics, Matches};
 use std::{io::Write, path::PathBuf};
 
 /// Generate shortlists of compatible dating partners, based on input dating questionnaire.
@@ -29,22 +29,35 @@ struct Args {
     /// Print match score next to each match name
     #[arg(short, long)]
     print_scores: bool,
+
+    /// Print diagnostic statistics to stderr
+    #[arg(short, long)]
+    diagnostics: bool,
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let matches = parse_and_generate_matches(&args)?;
-    let out = matches.to_string(); // formats into String — pure memcpy
+    let (matches, diagnostics) = parse_and_generate_matches(&args)?;
+
+    let out = matches.to_string();
     std::io::stdout().lock().write_all(out.as_bytes())?;
+
+    if let Some(diag) = diagnostics {
+        write!(std::io::stderr().lock(), "{diag}")?;
+    }
     Ok(())
 }
 
-fn parse_and_generate_matches(args: &Args) -> Result<Matches> {
-    let mut reader = csv::Reader::from_path(args.input_file_name.clone())?;
+fn parse_and_generate_matches(args: &Args) -> Result<(Matches, Option<Diagnostics>)> {
+    let mut reader = csv::Reader::from_path(&args.input_file_name)?;
     let responses = parsing::parse_responses(&mut reader)?;
-    let matches =
-        matching::create_matches(&responses, args.sort_shortlists_by_score, args.print_scores);
-    Ok(matches)
+    let result = matching::create_matches(
+        &responses,
+        args.sort_shortlists_by_score,
+        args.print_scores,
+        args.diagnostics,
+    );
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -67,7 +80,7 @@ mod tests {
             "test_data/many_generated.csv",
         ];
         let args = Args::try_parse_from(input).unwrap();
-        let matches = parse_and_generate_matches(&args).unwrap();
+        let (matches, _) = parse_and_generate_matches(&args).unwrap();
         let output = format!("{matches}");
 
         assert!(!output.is_empty());

@@ -11,6 +11,157 @@ use crate::parsing::{
 
 use anyhow::Result;
 
+#[derive(Debug, Default)]
+pub struct Diagnostics {
+    // Pool
+    pub male_count: usize,
+    pub female_count: usize,
+    pub pairs_scored: usize,
+    pub dealbreaker_eliminated: usize,
+    pub dealbreaker_by_wants_children: usize,
+    pub dealbreaker_by_stay_local: usize,
+    pub dealbreaker_by_marriage_timeline: usize,
+    pub dealbreaker_by_religion: usize,
+    // Convergence
+    pub cap_relaxed: bool,
+    pub shortlist_full: usize,
+    pub shortlist_acceptable: usize,
+    pub shortlist_under_min: usize,
+    pub shortlist_empty: usize,
+    pub appearance_max: u8,
+    pub appearance_stddev: f32,
+    pub zero_appearance_participants: usize,
+    // Quality
+    pub histogram: [usize; 6], // <0.5, 0.5-0.6, 0.6-0.7, 0.7-0.8, 0.8-0.9, >=0.9
+    pub regret_mean: f32,
+    pub regret_p95: f32,
+}
+
+impl Display for Diagnostics {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        const BAR_WIDTH: usize = 50;
+        writeln!(f, "== Pool (is the input usable?) ==") ?;
+        writeln!(f, "male_count: {}", self.male_count)?;
+        writeln!(f, "female_count: {}", self.female_count)?;
+        writeln!(
+            f,
+            "pairs_scored: {}\t((male, female) pairs that survived all dealbreakers and got a score)",
+            self.pairs_scored
+        )?;
+        writeln!(
+            f,
+            "dealbreaker_eliminated: {}\t(pairs rejected before scoring due to dealbreakers)",
+            self.dealbreaker_eliminated
+        )?;
+        writeln!(
+            f,
+            "  by wants_children: {}",
+            self.dealbreaker_by_wants_children
+        )?;
+        writeln!(
+            f,
+            "  by stay_local: {}",
+            self.dealbreaker_by_stay_local
+        )?;
+        writeln!(
+            f,
+            "  by marriage_timeline: {}",
+            self.dealbreaker_by_marriage_timeline
+        )?;
+        writeln!(
+            f,
+            "  by religion: {}",
+            self.dealbreaker_by_religion
+        )?;
+
+        writeln!(
+            f,
+            "\n== Convergence (did the algorithm finish cleanly?) =="
+        )?;
+        writeln!(
+            f,
+            "cap_relaxed: {}\t(true if the appearance cap had to be raised to make progress; true = pool was tight and quality may have suffered)",
+            self.cap_relaxed
+        )?;
+        writeln!(
+            f,
+            "shortlist_full: {}\t(people whose shortlist reached the target size)",
+            self.shortlist_full
+        )?;
+        writeln!(
+            f,
+            "shortlist_acceptable: {}\t(people with shortlists at or above the minimum but not full; some quality loss)",
+            self.shortlist_acceptable
+        )?;
+        writeln!(
+            f,
+            "shortlist_under_min: {}\t(people whose shortlists are below the minimum acceptable size; the relaxed retry couldn't fill them)",
+            self.shortlist_under_min
+        )?;
+        writeln!(
+            f,
+            "shortlist_empty: {}\t(people who got no matches as a subject; usually means no opposite-gender candidates passed their dealbreakers)",
+            self.shortlist_empty
+        )?;
+        writeln!(
+            f,
+            "appearance_max: {}\t(the most times any one person was picked; should sit at or just below the appearance cap when load is balanced)",
+            self.appearance_max
+        )?;
+        writeln!(
+            f,
+            "appearance_stddev: {:.2}\t(spread of pick counts; low = even distribution, high = a few popular people absorbed many picks while others got none)",
+            self.appearance_stddev
+        )?;
+        writeln!(
+            f,
+            "zero_appearance_participants: {}\t(people no one's shortlist included (object side); distinct from shortlist_empty (subject side))",
+            self.zero_appearance_participants
+        )?;
+
+        writeln!(f, "\n== Quality (is the output good?) ==")?;
+        writeln!(
+            f,
+            "shortlisted_score_histogram: (distribution of scores that were actually served; mass in high buckets is healthy, weight in low buckets means someone got a poor match)"
+        )?;
+        let labels = [
+            "<0.5   ", "0.5-0.6", "0.6-0.7", "0.7-0.8", "0.8-0.9", ">=0.9  ",
+        ];
+        let max_count = *self.histogram.iter().max().unwrap_or(&1);
+        for (label, &count) in labels.iter().zip(self.histogram.iter()) {
+            let bar_len = if max_count == 0 {
+                0
+            } else {
+                count * BAR_WIDTH / max_count
+            };
+            let bar: String = "#".repeat(bar_len);
+            writeln!(f, "  {label} | {bar:<BAR_WIDTH$}  {count}")?;
+        }
+        writeln!(
+            f,
+            "regret_mean: {:.3}\t(average gap between each person's best possible score and the best score they were actually served; 0 = everyone got their algorithmic best, larger = cap or shuffle pushed them away)",
+            self.regret_mean
+        )?;
+        writeln!(
+            f,
+            "regret_p95: {:.3}\t(95th percentile of that gap; catches the worst cases the mean hides — a large p95 with a small mean means a few people were significantly downgraded)",
+            self.regret_p95
+        )?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum DealbreakerCause {
+    WantsChildren,
+    StayLocal,
+    MarriageTimeline,
+    Religion,
+}
+
+const TARGET_SHORTLIST: usize = 5;
+const MIN_SHORTLIST: usize = 3;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Matches {
     cards: Vec<MatchCard>,
@@ -66,18 +217,20 @@ pub fn create_matches(
     responses: &[QuestionnaireResponse],
     sort_shortlists_by_score: bool,
     print_scores: bool,
-) -> Matches {
+    collect_diagnostics: bool,
+) -> (Matches, Option<Diagnostics>) {
     let mut rng = rand::rng();
 
     // Score all pairs
-    let pairs = build_scored_pairs(responses);
+    let (pairs, pairs_stats) = build_scored_pairs(responses, collect_diagnostics);
 
     // Assign shortlists via round-robin
     let ids = responses
         .iter()
         .map(QuestionnaireResponse::id)
         .collect_vec();
-    let shortlists = assign_shortlists(&ids, &pairs, &mut rng);
+    let (shortlists, shortlist_stats) =
+        assign_shortlists(&ids, &pairs, &mut rng, collect_diagnostics);
 
     let ids_to_responses: FxHashMap<&str, &QuestionnaireResponse> =
         responses.iter().map(|r| (r.id(), r)).collect();
@@ -122,28 +275,152 @@ pub fn create_matches(
         })
         .collect_vec();
 
-    matches.sort_unstable_by_key(|m| m.email.clone());
+    matches.sort_unstable_by(|a, b| a.email.cmp(&b.email));
 
-    Matches {
+    let result = Matches {
         cards: matches,
         print_scores,
-    }
+    };
+
+    let diagnostics = build_diagnostics(pairs_stats, shortlist_stats, &ids, &pairs, &result);
+
+    (result, diagnostics)
 }
 
-/// Returns true of there are no dealbreakers a -> b, or b -> a, otherwise returns false.
-fn passes_dealbreakers(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> bool {
+fn build_diagnostics(
+    pairs_stats: Option<PairsStats>,
+    shortlist_stats: Option<ShortlistStats>,
+    ids: &[&str],
+    pairs: &FxHashMap<(&str, &str), f32>,
+    result: &Matches,
+) -> Option<Diagnostics> {
+    let (ps, ss) = pairs_stats.zip(shortlist_stats)?;
+    let total_participants = ids.len();
+
+    // Convergence: shortlist size buckets
+    let mut shortlist_full = 0usize;
+    let mut shortlist_acceptable = 0usize;
+    let mut shortlist_under_min = 0usize;
+    let mut shortlist_empty = 0usize;
+    for card in &result.cards {
+        match card.shortlist.len() {
+            n if n >= TARGET_SHORTLIST => shortlist_full += 1,
+            n if n >= MIN_SHORTLIST => shortlist_acceptable += 1,
+            0 => shortlist_empty += 1,
+            _ => shortlist_under_min += 1,
+        }
+    }
+
+    // Appearance stats
+    let appearance_max = ss.appearance_count.values().copied().max().unwrap_or(0);
+    let zero_appearance_participants = ids
+        .iter()
+        .filter(|id| ss.appearance_count.get(**id).copied().unwrap_or(0) == 0)
+        .count();
+    let counts_with_zeros: Vec<f32> = ids
+        .iter()
+        .map(|id| f32::from(ss.appearance_count.get(*id).copied().unwrap_or(0)))
+        .collect();
+    let mean_appearances = counts_with_zeros.iter().sum::<f32>() / total_participants.max(1) as f32;
+    let variance = counts_with_zeros
+        .iter()
+        .map(|&c| (c - mean_appearances).powi(2))
+        .sum::<f32>()
+        / total_participants.max(1) as f32;
+    let appearance_stddev = variance.sqrt();
+
+    // Quality: histogram of shortlisted scores
+    let mut histogram = [0usize; 6];
+    for card in &result.cards {
+        for m in &card.shortlist {
+            let idx = match m.score {
+                s if s < 0.5 => 0,
+                s if s < 0.6 => 1,
+                s if s < 0.7 => 2,
+                s if s < 0.8 => 3,
+                s if s < 0.9 => 4,
+                _ => 5,
+            };
+            histogram[idx] += 1;
+        }
+    }
+
+    // Regret: gap between each person's best possible pool score and their best served score.
+    // Includes people with empty shortlists who had pool candidates (regret = top_pool - 0).
+    // Only excludes people with no pool candidates at all (not in top_pool_scores).
+    let mut regrets: Vec<f32> = result
+        .cards
+        .iter()
+        .filter_map(|card| {
+            let top_pool = *ps.top_pool_scores.get(&card.email)?;
+            let top_served = card
+                .shortlist
+                .iter()
+                .map(|m| m.score)
+                .fold(0.0_f32, f32::max);
+            Some((top_pool - top_served).max(0.0))
+        })
+        .collect();
+    let regret_mean = if regrets.is_empty() {
+        0.0
+    } else {
+        regrets.iter().sum::<f32>() / regrets.len() as f32
+    };
+    let regret_p95 = if regrets.is_empty() {
+        0.0
+    } else {
+        let p95_idx = (regrets.len() * 95)
+            .div_ceil(100)
+            .saturating_sub(1)
+            .min(regrets.len() - 1);
+        regrets.select_nth_unstable_by(p95_idx, |a, b| a.partial_cmp(b).expect("comparable"));
+        regrets[p95_idx]
+    };
+
+    Some(Diagnostics {
+        male_count: ps.male_count,
+        female_count: ps.female_count,
+        pairs_scored: pairs.len(),
+        dealbreaker_eliminated: ps.dealbreaker_eliminated,
+        dealbreaker_by_wants_children: ps.dealbreaker_by_wants_children,
+        dealbreaker_by_stay_local: ps.dealbreaker_by_stay_local,
+        dealbreaker_by_marriage_timeline: ps.dealbreaker_by_marriage_timeline,
+        dealbreaker_by_religion: ps.dealbreaker_by_religion,
+        cap_relaxed: ss.cap_relaxed,
+        shortlist_full,
+        shortlist_acceptable,
+        shortlist_under_min,
+        shortlist_empty,
+        appearance_max,
+        appearance_stddev,
+        zero_appearance_participants,
+        histogram,
+        regret_mean,
+        regret_p95,
+    })
+}
+
+/// Returns Ok(()) if no dealbreakers, or Err with the first cause found.
+fn passes_dealbreakers(
+    a: &QuestionnaireResponse,
+    b: &QuestionnaireResponse,
+) -> Result<(), DealbreakerCause> {
     match (
         &a.dealbreakers.wants_children,
         &b.dealbreakers.wants_children,
     ) {
         (YesNoMaybeResponse::No, YesNoMaybeResponse::Yes)
-        | (YesNoMaybeResponse::Yes, YesNoMaybeResponse::No) => return false,
+        | (YesNoMaybeResponse::Yes, YesNoMaybeResponse::No) => {
+            return Err(DealbreakerCause::WantsChildren);
+        }
         _ => (),
     }
 
     match (&a.dealbreakers.stay_local, &b.dealbreakers.stay_local) {
         (YesNoMaybeResponse::No, YesNoMaybeResponse::Yes)
-        | (YesNoMaybeResponse::Yes, YesNoMaybeResponse::No) => return false,
+        | (YesNoMaybeResponse::Yes, YesNoMaybeResponse::No) => {
+            return Err(DealbreakerCause::StayLocal);
+        }
         _ => (),
     }
 
@@ -153,7 +430,7 @@ fn passes_dealbreakers(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> 
     ) {
         (MarriageTimelineResponse::ZeroToTwo, MarriageTimelineResponse::FivePlus)
         | (MarriageTimelineResponse::FivePlus, MarriageTimelineResponse::ZeroToTwo) => {
-            return false;
+            return Err(DealbreakerCause::MarriageTimeline);
         }
         _ => (),
     }
@@ -163,7 +440,7 @@ fn passes_dealbreakers(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> 
             if a.dealbreakers.my_religious_commitment.0
                 != b.dealbreakers.my_religious_commitment.0 =>
         {
-            return false;
+            return Err(DealbreakerCause::Religion);
         }
         PartnersReligionResponse::Within1Level
             if a.dealbreakers
@@ -172,7 +449,7 @@ fn passes_dealbreakers(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> 
                 .abs_diff(b.dealbreakers.my_religious_commitment.0)
                 > 1 =>
         {
-            return false;
+            return Err(DealbreakerCause::Religion);
         }
         _ => (),
     }
@@ -182,21 +459,21 @@ fn passes_dealbreakers(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> 
             if b.dealbreakers.my_religious_commitment.0
                 != a.dealbreakers.my_religious_commitment.0 =>
         {
-            return false;
+            return Err(DealbreakerCause::Religion);
         }
         PartnersReligionResponse::Within1Level
-            if a.dealbreakers
+            if b.dealbreakers
                 .my_religious_commitment
                 .0
-                .abs_diff(b.dealbreakers.my_religious_commitment.0)
+                .abs_diff(a.dealbreakers.my_religious_commitment.0)
                 > 1 =>
         {
-            return false;
+            return Err(DealbreakerCause::Religion);
         }
         _ => (),
     }
 
-    true
+    Ok(())
 }
 
 fn calculate_subject_chosen_weight_scale_factor(a: &QuestionnaireResponse) -> f32 {
@@ -438,10 +715,10 @@ fn directional_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f3
     total += core_value_results.0;
     weight_sum += core_value_results.1;
 
-    let relationsip_dynamics_results =
+    let relationship_dynamics_results =
         process_relationship_dynamics(a, b, subject_chosen_weight_scale_factor);
-    total += relationsip_dynamics_results.0;
-    weight_sum += relationsip_dynamics_results.1;
+    total += relationship_dynamics_results.0;
+    weight_sum += relationship_dynamics_results.1;
 
     let lifestyle_money_results = process_lifestyle_money(a, b);
     total += lifestyle_money_results.0;
@@ -482,44 +759,110 @@ fn mutual_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f32 {
     (0.8 * min_score) + (0.2 * average)
 }
 
+struct PairsStats {
+    male_count: usize,
+    female_count: usize,
+    dealbreaker_eliminated: usize,
+    dealbreaker_by_wants_children: usize,
+    dealbreaker_by_stay_local: usize,
+    dealbreaker_by_marriage_timeline: usize,
+    dealbreaker_by_religion: usize,
+    top_pool_scores: FxHashMap<String, f32>,
+}
+
 /// Builds a hashmap of (male.id, female.id) -> score. No pairing will be in the map if
 /// there are dealbreakers on either side. Score takes into account how compatible each
 /// side is with the other, so no need for a reverse map (female.id, male.id) -> score.
-fn build_scored_pairs(responses: &[QuestionnaireResponse]) -> FxHashMap<(&str, &str), f32> {
+fn build_scored_pairs(
+    responses: &[QuestionnaireResponse],
+    collect_stats: bool,
+) -> (FxHashMap<(&str, &str), f32>, Option<PairsStats>) {
     // Empircally good enough for 1000 people. Technically the capacity should be (responses / 2) ^ 2 assuming
     // equal numbers of men and women. But dealbreakers shrink that down.
     let mut pairs = FxHashMap::with_capacity_and_hasher(50000, FxBuildHasher);
 
-    for male in responses
+    let males: Vec<_> = responses
         .iter()
         .filter(|r| r.demographics.gender == Gender::Male)
-    {
-        for female in responses
-            .iter()
-            .filter(|r| r.demographics.gender == Gender::Female)
-        {
-            if !passes_dealbreakers(male, female) {
+        .collect();
+    let females: Vec<_> = responses
+        .iter()
+        .filter(|r| r.demographics.gender == Gender::Female)
+        .collect();
+
+    let mut stats = if collect_stats {
+        Some(PairsStats {
+            male_count: males.len(),
+            female_count: females.len(),
+            dealbreaker_eliminated: 0,
+            dealbreaker_by_wants_children: 0,
+            dealbreaker_by_stay_local: 0,
+            dealbreaker_by_marriage_timeline: 0,
+            dealbreaker_by_religion: 0,
+            top_pool_scores: FxHashMap::default(),
+        })
+    } else {
+        None
+    };
+
+    for male in &males {
+        for female in &females {
+            if let Err(cause) = passes_dealbreakers(male, female) {
+                if let Some(ref mut s) = stats {
+                    s.dealbreaker_eliminated += 1;
+                    match cause {
+                        DealbreakerCause::WantsChildren => s.dealbreaker_by_wants_children += 1,
+                        DealbreakerCause::StayLocal => s.dealbreaker_by_stay_local += 1,
+                        DealbreakerCause::MarriageTimeline => {
+                            s.dealbreaker_by_marriage_timeline += 1
+                        }
+                        DealbreakerCause::Religion => s.dealbreaker_by_religion += 1,
+                    }
+                }
                 continue;
             }
 
             let score = mutual_score(male, female);
-
             pairs.insert((male.id(), female.id()), score);
+
+            if let Some(ref mut s) = stats {
+                let e = s
+                    .top_pool_scores
+                    .entry(male.id().to_string())
+                    .or_insert(0.0_f32);
+                if score > *e {
+                    *e = score;
+                }
+                let e = s
+                    .top_pool_scores
+                    .entry(female.id().to_string())
+                    .or_insert(0.0_f32);
+                if score > *e {
+                    *e = score;
+                }
+            }
         }
     }
 
-    pairs
+    (pairs, stats)
 }
+
+struct ShortlistStats {
+    cap_relaxed: bool,
+    appearance_count: FxHashMap<String, u8>,
+}
+
+type Shortlists = FxHashMap<String, Vec<(String, f32)>>;
 
 fn assign_shortlists(
     ids: &[&str],
     pairs: &FxHashMap<(&str, &str), f32>,
     rng: &mut ThreadRng,
-) -> FxHashMap<String, Vec<(String, f32)>> {
+    collect_stats: bool,
+) -> (Shortlists, Option<ShortlistStats>) {
     const MAX_APPEARANCES: u8 = 12;
-    const TARGET_SHORTLIST: u8 = 5;
-
     let mut cap = MAX_APPEARANCES;
+    let mut cap_relaxed = false;
     let mut appearance_count: FxHashMap<&str, u8> = FxHashMap::default();
     let mut shortlists: FxHashMap<String, Vec<(String, f32)>> = FxHashMap::default();
 
@@ -542,6 +885,7 @@ fn assign_shortlists(
     // Ensure every id has an entry, even people who are not in pairs (only one of their gender, or dealbreakers that exclude everyone else)
     for pid in ids {
         ranked_candidates.entry(pid).or_default();
+        shortlists.entry(pid.to_string()).or_default();
     }
 
     for value in ranked_candidates.values_mut() {
@@ -562,7 +906,7 @@ fn assign_shortlists(
         for pid in order {
             if shortlists
                 .get(*pid)
-                .is_some_and(|a| a.len() >= TARGET_SHORTLIST as usize)
+                .is_some_and(|a| a.len() >= TARGET_SHORTLIST)
             {
                 incomplete.remove(&pid);
                 continue;
@@ -573,44 +917,63 @@ fn assign_shortlists(
             {
                 shortlists
                     .entry(pid.to_string())
-                    .or_insert(Vec::with_capacity(TARGET_SHORTLIST.into()))
+                    .or_insert(Vec::with_capacity(TARGET_SHORTLIST))
                     .push((other_id.to_string(), score));
                 *appearance_count.entry(other_id).or_default() += 1;
                 made_progress = true;
             }
         }
 
-        // If no progress was made this round, relax cap and retry.
+        // If no progress was made this round, relax cap and retry until exhausted.
         if !made_progress {
             const MAX_APPEARANCES_RELAXED: u8 = 14;
             cap = MAX_APPEARANCES_RELAXED;
-            let mut order: Vec<_> = incomplete.iter().copied().collect();
-            order.shuffle(rng);
-            for pid in order {
-                const MIN_SHORTLIST: u8 = 3;
-                if shortlists
-                    .get(*pid)
-                    .is_some_and(|a| a.len() >= MIN_SHORTLIST as usize)
-                {
-                    incomplete.remove(&pid);
-                    continue;
+            cap_relaxed = true;
+            loop {
+                let mut made_progress_relaxed = false;
+                let mut order: Vec<_> = incomplete.iter().copied().collect();
+                order.shuffle(rng);
+                for pid in order {
+                    if shortlists
+                        .get(*pid)
+                        .is_some_and(|a| a.len() >= MIN_SHORTLIST)
+                    {
+                        incomplete.remove(&pid);
+                        continue;
+                    }
+                    if let Some((other_id, score)) =
+                        next_available(pid, cap, &ranked_candidates, &shortlists, &appearance_count)
+                    {
+                        shortlists
+                            .entry(pid.to_string())
+                            .or_insert(Vec::with_capacity(TARGET_SHORTLIST))
+                            .push((other_id.to_string(), score));
+                        *appearance_count.entry(other_id).or_default() += 1;
+                        made_progress_relaxed = true;
+                    }
                 }
-                if let Some((other_id, score)) =
-                    next_available(pid, cap, &ranked_candidates, &shortlists, &appearance_count)
-                {
-                    shortlists
-                        .entry(pid.to_string())
-                        .or_insert(Vec::with_capacity(TARGET_SHORTLIST.into()))
-                        .push((other_id.to_string(), score));
-                    *appearance_count.entry(other_id).or_default() += 1;
+                if !made_progress_relaxed {
+                    break;
                 }
             }
-            // Break after relaxed retry regardless, avoid infinite loop
             break;
         }
     }
 
-    shortlists
+    let shortlist_stats = if collect_stats {
+        let owned_appearance: FxHashMap<String, u8> = appearance_count
+            .iter()
+            .map(|(k, v)| (k.to_string(), *v))
+            .collect();
+        Some(ShortlistStats {
+            cap_relaxed,
+            appearance_count: owned_appearance,
+        })
+    } else {
+        None
+    };
+
+    (shortlists, shortlist_stats)
 }
 
 fn next_available<'a>(
@@ -659,8 +1022,8 @@ mod tests {
             },
             ..Default::default()
         };
-        assert!(!passes_dealbreakers(&a, &b));
-        assert!(!passes_dealbreakers(&b, &a));
+        assert!(passes_dealbreakers(&a, &b).is_err());
+        assert!(passes_dealbreakers(&b, &a).is_err());
     }
 
     #[test]
@@ -680,8 +1043,8 @@ mod tests {
             },
             ..Default::default()
         };
-        assert!(passes_dealbreakers(&a, &a));
-        assert!(passes_dealbreakers(&b, &b));
+        assert!(passes_dealbreakers(&a, &a).is_ok());
+        assert!(passes_dealbreakers(&b, &b).is_ok());
     }
 
     #[test]
@@ -709,11 +1072,11 @@ mod tests {
             },
             ..Default::default()
         };
-        assert!(passes_dealbreakers(&a, &c));
-        assert!(passes_dealbreakers(&c, &a));
-        assert!(passes_dealbreakers(&b, &c));
-        assert!(passes_dealbreakers(&c, &b));
-        assert!(passes_dealbreakers(&c, &c));
+        assert!(passes_dealbreakers(&a, &c).is_ok());
+        assert!(passes_dealbreakers(&c, &a).is_ok());
+        assert!(passes_dealbreakers(&b, &c).is_ok());
+        assert!(passes_dealbreakers(&c, &b).is_ok());
+        assert!(passes_dealbreakers(&c, &c).is_ok());
     }
 
     #[test]
@@ -733,8 +1096,8 @@ mod tests {
             },
             ..Default::default()
         };
-        assert!(!passes_dealbreakers(&a, &b));
-        assert!(!passes_dealbreakers(&b, &a));
+        assert!(passes_dealbreakers(&a, &b).is_err());
+        assert!(passes_dealbreakers(&b, &a).is_err());
     }
 
     #[test]
@@ -754,8 +1117,8 @@ mod tests {
             },
             ..Default::default()
         };
-        assert!(passes_dealbreakers(&a, &a));
-        assert!(passes_dealbreakers(&b, &b));
+        assert!(passes_dealbreakers(&a, &a).is_ok());
+        assert!(passes_dealbreakers(&b, &b).is_ok());
     }
 
     #[test]
@@ -783,11 +1146,11 @@ mod tests {
             },
             ..Default::default()
         };
-        assert!(passes_dealbreakers(&a, &c));
-        assert!(passes_dealbreakers(&c, &a));
-        assert!(passes_dealbreakers(&b, &c));
-        assert!(passes_dealbreakers(&c, &b));
-        assert!(passes_dealbreakers(&c, &c));
+        assert!(passes_dealbreakers(&a, &c).is_ok());
+        assert!(passes_dealbreakers(&c, &a).is_ok());
+        assert!(passes_dealbreakers(&b, &c).is_ok());
+        assert!(passes_dealbreakers(&c, &b).is_ok());
+        assert!(passes_dealbreakers(&c, &c).is_ok());
     }
 
     #[test]
@@ -807,8 +1170,8 @@ mod tests {
             },
             ..Default::default()
         };
-        assert!(!passes_dealbreakers(&a, &b));
-        assert!(!passes_dealbreakers(&b, &a));
+        assert!(passes_dealbreakers(&a, &b).is_err());
+        assert!(passes_dealbreakers(&b, &a).is_err());
     }
 
     #[test]
@@ -836,9 +1199,9 @@ mod tests {
             },
             ..Default::default()
         };
-        assert!(passes_dealbreakers(&a, &a));
-        assert!(passes_dealbreakers(&b, &b));
-        assert!(passes_dealbreakers(&c, &c));
+        assert!(passes_dealbreakers(&a, &a).is_ok());
+        assert!(passes_dealbreakers(&b, &b).is_ok());
+        assert!(passes_dealbreakers(&c, &c).is_ok());
     }
 
     #[test]
@@ -866,10 +1229,10 @@ mod tests {
             },
             ..Default::default()
         };
-        assert!(passes_dealbreakers(&a, &b));
-        assert!(passes_dealbreakers(&b, &c));
-        assert!(passes_dealbreakers(&c, &b));
-        assert!(passes_dealbreakers(&b, &a));
+        assert!(passes_dealbreakers(&a, &b).is_ok());
+        assert!(passes_dealbreakers(&b, &c).is_ok());
+        assert!(passes_dealbreakers(&c, &b).is_ok());
+        assert!(passes_dealbreakers(&b, &a).is_ok());
     }
 
     #[test]
@@ -892,8 +1255,8 @@ mod tests {
             ..Default::default()
         };
 
-        assert!(passes_dealbreakers(&a, &b));
-        assert!(passes_dealbreakers(&b, &a));
+        assert!(passes_dealbreakers(&a, &b).is_ok());
+        assert!(passes_dealbreakers(&b, &a).is_ok());
     }
 
     #[test]
@@ -916,8 +1279,8 @@ mod tests {
             ..Default::default()
         };
 
-        assert!(passes_dealbreakers(&a, &b));
-        assert!(passes_dealbreakers(&b, &a));
+        assert!(passes_dealbreakers(&a, &b).is_ok());
+        assert!(passes_dealbreakers(&b, &a).is_ok());
 
         let a = QuestionnaireResponse {
             dealbreakers: Dealbreakers {
@@ -937,8 +1300,8 @@ mod tests {
             ..Default::default()
         };
 
-        assert!(passes_dealbreakers(&a, &b));
-        assert!(passes_dealbreakers(&b, &a));
+        assert!(passes_dealbreakers(&a, &b).is_ok());
+        assert!(passes_dealbreakers(&b, &a).is_ok());
 
         let a = QuestionnaireResponse {
             dealbreakers: Dealbreakers {
@@ -958,8 +1321,8 @@ mod tests {
             ..Default::default()
         };
 
-        assert!(passes_dealbreakers(&a, &b));
-        assert!(passes_dealbreakers(&b, &a));
+        assert!(passes_dealbreakers(&a, &b).is_ok());
+        assert!(passes_dealbreakers(&b, &a).is_ok());
     }
 
     #[test]
@@ -982,8 +1345,8 @@ mod tests {
             ..Default::default()
         };
 
-        assert!(!passes_dealbreakers(&a, &b));
-        assert!(!passes_dealbreakers(&b, &a));
+        assert!(passes_dealbreakers(&a, &b).is_err());
+        assert!(passes_dealbreakers(&b, &a).is_err());
 
         let a = QuestionnaireResponse {
             dealbreakers: Dealbreakers {
@@ -1003,8 +1366,8 @@ mod tests {
             ..Default::default()
         };
 
-        assert!(!passes_dealbreakers(&a, &b));
-        assert!(!passes_dealbreakers(&b, &a));
+        assert!(passes_dealbreakers(&a, &b).is_err());
+        assert!(passes_dealbreakers(&b, &a).is_err());
     }
 
     #[test]
@@ -1016,7 +1379,7 @@ mod tests {
 
     #[test]
     fn test_empty_create_matches() {
-        let matches = create_matches(&[], true, true);
+        let (matches, _) = create_matches(&[], true, true, false);
         assert_eq!(
             matches,
             Matches {
@@ -1028,11 +1391,17 @@ mod tests {
 
     #[test]
     fn test_one_item_create_matches() {
-        let matches = create_matches(&[QuestionnaireResponse::default()], true, true);
+        let (matches, _) = create_matches(&[QuestionnaireResponse::default()], true, true, false);
+        assert_eq!(matches.cards.len(), 1);
+        assert!(matches.cards[0].shortlist.is_empty());
         assert_eq!(
             matches,
             Matches {
-                cards: vec![],
+                cards: vec![MatchCard {
+                    name: "".to_string(),
+                    email: "".to_string(),
+                    shortlist: vec![],
+                }],
                 print_scores: true
             }
         )
@@ -1055,7 +1424,7 @@ mod tests {
             },
             ..Default::default()
         };
-        let matches = create_matches(&[first, second], true, true);
+        let (matches, _) = create_matches(&[first, second], true, true, false);
         assert_eq!(
             matches,
             Matches {
