@@ -28,7 +28,7 @@ pub struct Diagnostics {
     pub shortlist_acceptable: usize,
     pub shortlist_under_min: usize,
     pub shortlist_empty: usize,
-    pub appearance_max: u8,
+    pub appearance_max: usize,
     pub appearance_stddev: f32,
     pub zero_appearance_participants: usize,
     // Quality
@@ -40,7 +40,7 @@ pub struct Diagnostics {
 impl Display for Diagnostics {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         const BAR_WIDTH: usize = 50;
-        writeln!(f, "== Pool (is the input usable?) ==") ?;
+        writeln!(f, "== Pool (is the input usable?) ==")?;
         writeln!(f, "male_count: {}", self.male_count)?;
         writeln!(f, "female_count: {}", self.female_count)?;
         writeln!(
@@ -58,26 +58,15 @@ impl Display for Diagnostics {
             "  by wants_children: {}",
             self.dealbreaker_by_wants_children
         )?;
-        writeln!(
-            f,
-            "  by stay_local: {}",
-            self.dealbreaker_by_stay_local
-        )?;
+        writeln!(f, "  by stay_local: {}", self.dealbreaker_by_stay_local)?;
         writeln!(
             f,
             "  by marriage_timeline: {}",
             self.dealbreaker_by_marriage_timeline
         )?;
-        writeln!(
-            f,
-            "  by religion: {}",
-            self.dealbreaker_by_religion
-        )?;
+        writeln!(f, "  by religion: {}", self.dealbreaker_by_religion)?;
 
-        writeln!(
-            f,
-            "\n== Convergence (did the algorithm finish cleanly?) =="
-        )?;
+        writeln!(f, "\n== Convergence (did the algorithm finish cleanly?) ==")?;
         writeln!(
             f,
             "cap_relaxed: {}\t(true if the appearance cap had to be raised to make progress; true = pool was tight and quality may have suffered)",
@@ -159,9 +148,6 @@ enum DealbreakerCause {
     Religion,
 }
 
-const TARGET_SHORTLIST: usize = 5;
-const MIN_SHORTLIST: usize = 3;
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct Matches {
     cards: Vec<MatchCard>,
@@ -218,6 +204,10 @@ pub fn create_matches(
     sort_shortlists_by_score: bool,
     print_scores: bool,
     collect_diagnostics: bool,
+    target_shortlist: usize,
+    min_shortlist: usize,
+    max_appearances: usize,
+    max_appearances_relaxed: usize,
 ) -> (Matches, Option<Diagnostics>) {
     let mut rng = rand::rng();
 
@@ -229,8 +219,16 @@ pub fn create_matches(
         .iter()
         .map(QuestionnaireResponse::id)
         .collect_vec();
-    let (shortlists, shortlist_stats) =
-        assign_shortlists(&ids, &pairs, &mut rng, collect_diagnostics);
+    let (shortlists, shortlist_stats) = assign_shortlists(
+        &ids,
+        &pairs,
+        &mut rng,
+        collect_diagnostics,
+        target_shortlist,
+        min_shortlist,
+        max_appearances,
+        max_appearances_relaxed,
+    );
 
     let ids_to_responses: FxHashMap<&str, &QuestionnaireResponse> =
         responses.iter().map(|r| (r.id(), r)).collect();
@@ -282,7 +280,15 @@ pub fn create_matches(
         print_scores,
     };
 
-    let diagnostics = build_diagnostics(pairs_stats, shortlist_stats, &ids, &pairs, &result);
+    let diagnostics = build_diagnostics(
+        pairs_stats,
+        shortlist_stats,
+        &ids,
+        &pairs,
+        &result,
+        target_shortlist,
+        min_shortlist,
+    );
 
     (result, diagnostics)
 }
@@ -293,6 +299,8 @@ fn build_diagnostics(
     ids: &[&str],
     pairs: &FxHashMap<(&str, &str), f32>,
     result: &Matches,
+    target_shortlist: usize,
+    min_shortlist: usize,
 ) -> Option<Diagnostics> {
     let (ps, ss) = pairs_stats.zip(shortlist_stats)?;
     let total_participants = ids.len();
@@ -304,8 +312,8 @@ fn build_diagnostics(
     let mut shortlist_empty = 0usize;
     for card in &result.cards {
         match card.shortlist.len() {
-            n if n >= TARGET_SHORTLIST => shortlist_full += 1,
-            n if n >= MIN_SHORTLIST => shortlist_acceptable += 1,
+            n if n >= target_shortlist => shortlist_full += 1,
+            n if n >= min_shortlist => shortlist_acceptable += 1,
             0 => shortlist_empty += 1,
             _ => shortlist_under_min += 1,
         }
@@ -319,7 +327,7 @@ fn build_diagnostics(
         .count();
     let counts_with_zeros: Vec<f32> = ids
         .iter()
-        .map(|id| f32::from(ss.appearance_count.get(*id).copied().unwrap_or(0)))
+        .map(|id| ss.appearance_count.get(*id).copied().unwrap_or(0) as f32)
         .collect();
     let mean_appearances = counts_with_zeros.iter().sum::<f32>() / total_participants.max(1) as f32;
     let variance = counts_with_zeros
@@ -849,7 +857,7 @@ fn build_scored_pairs(
 
 struct ShortlistStats {
     cap_relaxed: bool,
-    appearance_count: FxHashMap<String, u8>,
+    appearance_count: FxHashMap<String, usize>,
 }
 
 type Shortlists = FxHashMap<String, Vec<(String, f32)>>;
@@ -859,11 +867,14 @@ fn assign_shortlists(
     pairs: &FxHashMap<(&str, &str), f32>,
     rng: &mut ThreadRng,
     collect_stats: bool,
+    target_shortlist: usize,
+    min_shortlist: usize,
+    max_appearances: usize,
+    max_appearances_relaxed: usize,
 ) -> (Shortlists, Option<ShortlistStats>) {
-    const MAX_APPEARANCES: u8 = 12;
-    let mut cap = MAX_APPEARANCES;
+    let mut cap = max_appearances;
     let mut cap_relaxed = false;
-    let mut appearance_count: FxHashMap<&str, u8> = FxHashMap::default();
+    let mut appearance_count: FxHashMap<&str, usize> = FxHashMap::default();
     let mut shortlists: FxHashMap<String, Vec<(String, f32)>> = FxHashMap::default();
 
     // # Precompute each person's ranked candidate list (descending score)
@@ -906,7 +917,7 @@ fn assign_shortlists(
         for pid in order {
             if shortlists
                 .get(*pid)
-                .is_some_and(|a| a.len() >= TARGET_SHORTLIST)
+                .is_some_and(|a| a.len() >= target_shortlist)
             {
                 incomplete.remove(&pid);
                 continue;
@@ -917,7 +928,7 @@ fn assign_shortlists(
             {
                 shortlists
                     .entry(pid.to_string())
-                    .or_insert(Vec::with_capacity(TARGET_SHORTLIST))
+                    .or_insert(Vec::with_capacity(target_shortlist))
                     .push((other_id.to_string(), score));
                 *appearance_count.entry(other_id).or_default() += 1;
                 made_progress = true;
@@ -926,8 +937,7 @@ fn assign_shortlists(
 
         // If no progress was made this round, relax cap and retry until exhausted.
         if !made_progress {
-            const MAX_APPEARANCES_RELAXED: u8 = 14;
-            cap = MAX_APPEARANCES_RELAXED;
+            cap = max_appearances_relaxed;
             loop {
                 let mut made_progress_relaxed = false;
                 let mut order: Vec<_> = incomplete.iter().copied().collect();
@@ -935,7 +945,7 @@ fn assign_shortlists(
                 for pid in order {
                     if shortlists
                         .get(*pid)
-                        .is_some_and(|a| a.len() >= MIN_SHORTLIST)
+                        .is_some_and(|a| a.len() >= min_shortlist)
                     {
                         incomplete.remove(&pid);
                         continue;
@@ -945,7 +955,7 @@ fn assign_shortlists(
                     {
                         shortlists
                             .entry(pid.to_string())
-                            .or_insert(Vec::with_capacity(TARGET_SHORTLIST))
+                            .or_insert(Vec::with_capacity(min_shortlist))
                             .push((other_id.to_string(), score));
                         *appearance_count.entry(other_id).or_default() += 1;
                         made_progress_relaxed = true;
@@ -961,7 +971,7 @@ fn assign_shortlists(
     }
 
     let shortlist_stats = if collect_stats {
-        let owned_appearance: FxHashMap<String, u8> = appearance_count
+        let owned_appearance: FxHashMap<String, usize> = appearance_count
             .iter()
             .map(|(k, v)| (k.to_string(), *v))
             .collect();
@@ -978,10 +988,10 @@ fn assign_shortlists(
 
 fn next_available<'a>(
     pid: &str,
-    current_cap: u8,
+    current_cap: usize,
     ranked_candidates: &'a FxHashMap<&str, Vec<(&str, f32)>>,
     shortlists: &FxHashMap<String, Vec<(String, f32)>>,
-    appearance_count: &FxHashMap<&str, u8>,
+    appearance_count: &FxHashMap<&str, usize>,
 ) -> Option<(&'a str, f32)> {
     for (other_id, score) in &ranked_candidates[pid] {
         if shortlists
@@ -1379,7 +1389,7 @@ mod tests {
 
     #[test]
     fn test_empty_create_matches() {
-        let (matches, _) = create_matches(&[], true, true, false);
+        let (matches, _) = create_matches(&[], true, true, false, 5, 3, 12, 14);
         assert_eq!(
             matches,
             Matches {
@@ -1391,7 +1401,16 @@ mod tests {
 
     #[test]
     fn test_one_item_create_matches() {
-        let (matches, _) = create_matches(&[QuestionnaireResponse::default()], true, true, false);
+        let (matches, _) = create_matches(
+            &[QuestionnaireResponse::default()],
+            true,
+            true,
+            false,
+            5,
+            3,
+            12,
+            14,
+        );
         assert_eq!(matches.cards.len(), 1);
         assert!(matches.cards[0].shortlist.is_empty());
         assert_eq!(
@@ -1424,7 +1443,7 @@ mod tests {
             },
             ..Default::default()
         };
-        let (matches, _) = create_matches(&[first, second], true, true, false);
+        let (matches, _) = create_matches(&[first, second], true, true, false, 5, 3, 12, 14);
         assert_eq!(
             matches,
             Matches {

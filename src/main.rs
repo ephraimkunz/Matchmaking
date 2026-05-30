@@ -33,6 +33,24 @@ struct Args {
     /// Print diagnostic statistics to stderr
     #[arg(short, long)]
     diagnostics: bool,
+
+    /// The ideal length of each person's shortlist
+    #[arg(short, long, default_value_t = 5)]
+    target_shortlist: usize,
+
+    /// The minimum length of each person's shortlist. The algorithm will strive for the target, but if it
+    /// can't be satisfied it will relax the max_appearances and try to reach at least this length of shortlist.
+    #[arg(short, long, default_value_t = 3)]
+    min_shortlist: usize,
+
+    /// The maximum number of shortlists someone should appear on
+    #[arg(short = 'a', long, default_value_t = 12)]
+    max_appearances: usize,
+
+    /// The relaxed number of shortlists someone should appear on. If the algorithm can't satisfy the target shortlist,
+    /// it will relax this to try to at least reach shortlists of length min_shortlist.
+    #[arg(short = 'r', long, default_value_t = 14)]
+    max_appearances_relaxed: usize,
 }
 
 fn main() -> Result<()> {
@@ -56,6 +74,10 @@ fn parse_and_generate_matches(args: &Args) -> Result<(Matches, Option<Diagnostic
         args.sort_shortlists_by_score,
         args.print_scores,
         args.diagnostics,
+        args.target_shortlist,
+        args.min_shortlist,
+        args.max_appearances,
+        args.max_appearances_relaxed,
     );
     Ok(result)
 }
