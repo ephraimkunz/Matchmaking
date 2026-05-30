@@ -12,7 +12,7 @@ mod parsing;
 use anyhow::Result;
 use clap::Parser;
 use matching::Matches;
-use std::path::PathBuf;
+use std::{io::Write, path::PathBuf};
 
 /// Generate shortlists of compatible dating partners, based on input dating questionnaire.
 #[derive(Parser, Debug)]
@@ -34,7 +34,8 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
     let matches = parse_and_generate_matches(&args)?;
-    println!("{matches}");
+    let out = matches.to_string(); // formats into String — pure memcpy
+    std::io::stdout().lock().write_all(out.as_bytes())?;
     Ok(())
 }
 
