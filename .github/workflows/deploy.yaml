@@ -16,6 +16,8 @@ jobs:
         run: |
           echo "=== www ==="
           find www -type f | sort
+      - name: Remove gitignore
+        run: rm www/pkg/.gitignore
       - uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
