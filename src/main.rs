@@ -6,12 +6,9 @@
 #![warn(clippy::style)]
 #![allow(clippy::cast_precision_loss)]
 
-mod matching;
-mod parsing;
-
 use anyhow::Result;
 use clap::Parser;
-use matching::{Diagnostics, Matches};
+use matchmaking::parse_and_generate_matches;
 use std::{io::Write, path::PathBuf};
 
 /// Generate shortlists of compatible dating partners, based on input dating questionnaire.
@@ -51,7 +48,15 @@ struct Args {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let (matches, diagnostics) = parse_and_generate_matches(&args)?;
+    let (matches, diagnostics) = parse_and_generate_matches(
+        args.input_file_name,
+        args.sort_shortlists_by_score,
+        args.print_scores,
+        args.diagnostics,
+        args.target_shortlist,
+        args.max_appearances,
+        args.max_appearances_relaxed,
+    )?;
 
     let out = matches.to_string();
     std::io::stdout().lock().write_all(out.as_bytes())?;
@@ -60,21 +65,6 @@ fn main() -> Result<()> {
         write!(std::io::stderr().lock(), "{diag}")?;
     }
     Ok(())
-}
-
-fn parse_and_generate_matches(args: &Args) -> Result<(Matches, Option<Diagnostics>)> {
-    let mut reader = csv::Reader::from_path(&args.input_file_name)?;
-    let responses = parsing::parse_responses(&mut reader)?;
-    let result = matching::create_matches(
-        &responses,
-        args.sort_shortlists_by_score,
-        args.print_scores,
-        args.diagnostics,
-        args.target_shortlist,
-        args.max_appearances,
-        args.max_appearances_relaxed,
-    );
-    Ok(result)
 }
 
 #[cfg(test)]
@@ -97,7 +87,16 @@ mod tests {
             "test_data/many_generated.csv",
         ];
         let args = Args::try_parse_from(input).unwrap();
-        let (matches, _) = parse_and_generate_matches(&args).unwrap();
+        let (matches, _) = parse_and_generate_matches(
+            args.input_file_name,
+            args.sort_shortlists_by_score,
+            args.print_scores,
+            args.diagnostics,
+            args.target_shortlist,
+            args.max_appearances,
+            args.max_appearances_relaxed,
+        )
+        .unwrap();
         let output = format!("{matches}");
 
         assert!(!output.is_empty());

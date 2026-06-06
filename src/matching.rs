@@ -109,13 +109,23 @@ impl Display for Diagnostics {
             "religion", self.dealbreaker_by_religion
         )?;
         writeln!(f)?;
-        writeln!(f, "  pairs_scored: (male, female) pairs that survived all dealbreakers and got a score")?;
-        writeln!(f, "  dealbreaker_eliminated: pairs rejected before scoring due to dealbreakers")?;
+        writeln!(
+            f,
+            "  pairs_scored: (male, female) pairs that survived all dealbreakers and got a score"
+        )?;
+        writeln!(
+            f,
+            "  dealbreaker_eliminated: pairs rejected before scoring due to dealbreakers"
+        )?;
 
         // ── CONVERGENCE ───────────────────────────────────────────────────────
         writeln!(f, "\nCONVERGENCE  did the algorithm finish cleanly?")?;
         writeln!(f, "  {:<C_LW$}{:>C_VW$}", "cap_relaxed", self.cap_relaxed)?;
-        writeln!(f, "  {:<C_LW$}{:>C_VW$}", "appearance_max", self.appearance_max)?;
+        writeln!(
+            f,
+            "  {:<C_LW$}{:>C_VW$}",
+            "appearance_max", self.appearance_max
+        )?;
         writeln!(
             f,
             "  {:<C_LW$}{:>C_VW$}",
@@ -125,8 +135,7 @@ impl Display for Diagnostics {
         writeln!(
             f,
             "  {:<C_LW$}{:>C_VW$}",
-            "zero_appearances",
-            self.zero_appearance_participants
+            "zero_appearances", self.zero_appearance_participants
         )?;
         writeln!(f)?;
         writeln!(f, "  shortlist lengths")?;
@@ -140,20 +149,31 @@ impl Display for Diagnostics {
             } else {
                 format!("{length}")
             };
-            let bar_len = if max_len_count == 0 {
-                0
-            } else {
-                count * BAR_WIDTH / max_len_count
-            };
+            let bar_len = (count * BAR_WIDTH).checked_div(max_len_count).unwrap_or(0);
             let bar: String = "#".repeat(bar_len);
             writeln!(f, "    {label:<HIST_LABEL_W$} | {bar:<BAR_WIDTH$}  {count}")?;
         }
         writeln!(f)?;
-        writeln!(f, "  cap_relaxed: true if the appearance cap had to be raised to make progress; true = pool was tight and quality may have suffered")?;
-        writeln!(f, "  appearance_max: the most times any one person was picked; should sit at the cap when the pool is tight")?;
-        writeln!(f, "  appearance_stddev: spread of pick counts; low = even distribution, high = a few popular people absorbed many picks while others got none")?;
-        writeln!(f, "  zero_appearances: people no one's shortlist included; see histogram index 0 for the subject-side complement")?;
-        writeln!(f, "  shortlist lengths: exact count of people with each shortlist length; 0 = no matches, last bucket = full target")?;
+        writeln!(
+            f,
+            "  cap_relaxed: true if the appearance cap had to be raised to make progress; true = pool was tight and quality may have suffered"
+        )?;
+        writeln!(
+            f,
+            "  appearance_max: the most times any one person was picked; should sit at the cap when the pool is tight"
+        )?;
+        writeln!(
+            f,
+            "  appearance_stddev: spread of pick counts; low = even distribution, high = a few popular people absorbed many picks while others got none"
+        )?;
+        writeln!(
+            f,
+            "  zero_appearances: people no one's shortlist included; see histogram index 0 for the subject-side complement"
+        )?;
+        writeln!(
+            f,
+            "  shortlist lengths: exact count of people with each shortlist length; 0 = no matches, last bucket = full target"
+        )?;
 
         // ── QUALITY ───────────────────────────────────────────────────────────
         writeln!(f, "\nQUALITY  is the output good?")?;
@@ -163,7 +183,11 @@ impl Display for Diagnostics {
             "rank_regret_mean",
             format!("{:.2}", self.rank_regret_mean)
         )?;
-        writeln!(f, "  {:<Q_LW$}{:>Q_VW$}", "rank_regret_p95", self.rank_regret_p95)?;
+        writeln!(
+            f,
+            "  {:<Q_LW$}{:>Q_VW$}",
+            "rank_regret_p95", self.rank_regret_p95
+        )?;
         writeln!(
             f,
             "  {:<Q_LW$}{:>Q_VW$}",
@@ -185,21 +209,30 @@ impl Display for Diagnostics {
                         bucket_lo + width
                     };
                     let label = format!("{bucket_lo:.3}-{bucket_hi:.3}");
-                    let bar_len = if max_count == 0 {
-                        0
-                    } else {
-                        count * BAR_WIDTH / max_count
-                    };
+                    let bar_len = (count * BAR_WIDTH).checked_div(max_count).unwrap_or(0);
+
                     let bar: String = "#".repeat(bar_len);
                     writeln!(f, "    {label:<HIST_LABEL_W$} | {bar:<BAR_WIDTH$}  {count}")?;
                 }
             }
         }
         writeln!(f)?;
-        writeln!(f, "  rank_regret_mean: extra candidates skipped per pick because higher-ranked options were at the appearance cap. 0 = every pick was the best still-available match; 2 = on average the cap forced 2 better candidates to be skipped before each pick. Larger means the cap is biting harder.")?;
-        writeln!(f, "  rank_regret_p95: same skip-count, 95th percentile. A small mean with a large p95 means most picks were unblocked but a few people had popular candidates capped out and got pushed deep into their list.")?;
-        writeln!(f, "  mutual_rate: fraction of shortlist entries where B is also on A's list; 100% = every match is mutual, low values mean many one-sided introductions")?;
-        writeln!(f, "  score distribution: distribution of scores that were actually served, auto-ranged to the observed [min, max]; mass in high buckets is healthy, weight in low buckets means someone got a poor match")?;
+        writeln!(
+            f,
+            "  rank_regret_mean: extra candidates skipped per pick because higher-ranked options were at the appearance cap. 0 = every pick was the best still-available match; 2 = on average the cap forced 2 better candidates to be skipped before each pick. Larger means the cap is biting harder."
+        )?;
+        writeln!(
+            f,
+            "  rank_regret_p95: same skip-count, 95th percentile. A small mean with a large p95 means most picks were unblocked but a few people had popular candidates capped out and got pushed deep into their list."
+        )?;
+        writeln!(
+            f,
+            "  mutual_rate: fraction of shortlist entries where B is also on A's list; 100% = every match is mutual, low values mean many one-sided introductions"
+        )?;
+        writeln!(
+            f,
+            "  score distribution: distribution of scores that were actually served, auto-ranged to the observed [min, max]; mass in high buckets is healthy, weight in low buckets means someone got a poor match"
+        )?;
         Ok(())
     }
 }
