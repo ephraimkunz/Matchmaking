@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Matchmaking</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --white: #ffffff;
+      --light: #f8f9fa;
+      --dark: #212529;
+      --success: #198754;
+      --success-light: #d1e7dd;
+      --success-border: #a3cfbb;
+      --primary: #0d6efd;
+      --primary-light: #cfe2ff;
+      --danger: #dc3545;
+      --danger-light: #f8d7da;
+      --muted: #6c757d;
+      --border: #dee2e6;
+      --border-focus: #86b7fe;
+      --bg: #f8f9fa;
+      --bg-card: #ffffff;
+      --font-sans: 'DM Sans', system-ui, sans-serif;
+      --font-mono: 'DM Mono', 'Courier New', monospace;
+      --radius: 6px;
+      --radius-lg: 10px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--dark);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ── Navbar ── */
+    .navbar {
+      background: var(--primary);
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .navbar-brand {
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      font-weight: 500;
+      color: white;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .navbar-text {
+      font-size: 13px;
+      color: rgba(255,255,255,0.75);
+    }
+
+    /* ── Layout ── */
+    .shell {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 1.5rem;
+      align-items: start;
+    }
+
+    @media (max-width: 680px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.25rem;
+      box-shadow: var(--shadow);
+    }
+
+    .card + .card { margin-top: 1rem; }
+
+    .card-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+    }
+
+    /* ── Upload zone ── */
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .upload-zone:hover, .upload-zone.drag {
+      background: var(--primary-light);
+      border-color: var(--primary);
+    }
+
+    .upload-zone.has-file {
+      border-style: solid;
+      border-color: var(--success);
+      background: var(--success-light);
+    }
+
+    .upload-icon { font-size: 22px; margin-bottom: 6px; color: var(--muted); }
+    .upload-zone.has-file .upload-icon { color: var(--success); }
+    .upload-main { font-size: 13px; color: var(--muted); }
+    .upload-zone.has-file .upload-main { color: var(--success); font-weight: 500; }
+    .upload-sub { font-size: 11px; color: var(--muted); margin-top: 3px; font-family: var(--font-mono); }
+
+    /* ── Params ── */
+    .param-block { margin-bottom: 1.1rem; }
+    .param-block:last-child { margin-bottom: 0; }
+
+    .param-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 5px;
+    }
+
+    .param-name { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
+
+    .param-val {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--primary);
+    }
+
+    .param-hint {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 5px;
+      line-height: 1.4;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--primary);
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+      box-shadow: 0 0 0 4px var(--primary-light);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border: none;
+      border-radius: 50%;
+      background: var(--primary);
+      cursor: pointer;
+    }
+
+    /* ── Toggles ── */
+    .toggle-block {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .toggle-label-col { display: flex; flex-direction: column; flex: 1; }
+
+    .toggle-block:last-child { border-bottom: none; }
+    .toggle-name { font-size: 12px; color: var(--dark); font-family: var(--font-mono); }
+    .toggle-hint { font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+
+    .toggle {
+      position: relative;
+      width: 36px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
+    .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.15s;
+      border: 1px solid var(--border);
+    }
+
+    .toggle input:checked + .toggle-track { background: var(--success); border-color: var(--success); }
+
+    .toggle-thumb {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: white;
+      pointer-events: none;
+      transition: transform 0.15s;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+
+    .toggle input:checked ~ .toggle-thumb { transform: translateX(16px); }
+
+    /* ── Run button ── */
+    .run-btn {
+      width: 100%;
+      margin-top: 1rem;
+      padding: 10px;
+      font-family: var(--font-sans);
+      font-size: 14px;
+      font-weight: 500;
+      background: var(--success);
+      color: white;
+      border: none;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      letter-spacing: 0.01em;
+    }
+
+    .run-btn:hover:not(:disabled) { opacity: 0.88; }
+    .run-btn:active:not(:disabled) { transform: scale(0.98); }
+    .run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Output column ── */
+    .output-col { display: flex; flex-direction: column; gap: 1rem; }
+
+    /* ── Status bar ── */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      padding: 8px 14px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      background: var(--bg-card);
+      box-shadow: var(--shadow);
+    }
+
+    .status-bar.running {
+      color: var(--primary);
+      border-color: var(--border-focus);
+      background: var(--primary-light);
+    }
+
+    .status-bar.done {
+      color: var(--success);
+      border-color: var(--success-border);
+      background: var(--success-light);
+    }
+
+    .status-bar.error {
+      color: var(--danger);
+      border-color: #f1aeb5;
+      background: var(--danger-light);
+    }
+
+    .status-left { display: flex; align-items: center; gap: 8px; flex: 1; }
+    .status-timer { font-family: var(--font-mono); font-size: 12px; margin-left: auto; color: inherit; opacity: 0.7; }
+
+    /* Spinner */
+    .spinner {
+      display: none;
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--primary-light);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    .running .spinner { display: block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Dot for idle/done/error */
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      flex-shrink: 0;
+      opacity: 0.6;
+    }
+
+    .running .dot { display: none; }
+
+    /* ── Output box ── */
+    .output-box { display: flex; flex-direction: column; }
+
+    .output-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tab {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      padding: 8px 16px;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: color 0.15s;
+      margin-bottom: -1px;
+    }
+
+    .tab:hover { color: var(--dark); }
+    .tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 500; }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .output-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0 6px;
+    }
+
+    .output-meta { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+
+    .copy-btn {
+      font-size: 12px;
+      padding: 3px 12px;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--muted);
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+      font-family: var(--font-sans);
+    }
+
+    .copy-btn:hover { border-color: var(--muted); color: var(--dark); background: var(--light); }
+    .copy-btn.copied { color: var(--success); border-color: var(--success-border); background: var(--success-light); }
+
+    pre.output-pre {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--dark);
+      background: var(--light);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      min-height: 300px;
+      max-height: 620px;
+      overflow-y: auto;
+    }
+
+    pre.output-pre.placeholder::before {
+      content: attr(data-placeholder);
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <span class="navbar-brand">
+      ♥
+      Matchmaking
+    </span>
+    <span class="navbar-text">Upload a response CSV, tune the parameters, and run the matching algorithm in your browser.</span>
+  </nav>
+
+  <div class="shell">
+    <div class="grid">
+
+      <!-- Left: controls -->
+      <div class="controls-col">
+
+        <div class="card">
+          <div class="card-label">Input</div>
+          <div class="upload-zone" id="dropzone"
+               onclick="document.getElementById('file-input').click()"
+               role="button" tabindex="0" aria-label="Upload CSV file">
+            <div class="upload-icon">↑</div>
+            <div class="upload-main" id="upload-main">Drop CSV or click to browse</div>
+            <div class="upload-sub" id="upload-sub">no file selected</div>
+          </div>
+          <input type="file" id="file-input" accept=".csv" style="display:none" aria-label="CSV file input" />
+        </div>
+
+        <div class="card">
+          <div class="card-label">Numeric parameters</div>
+
+          <div class="param-block">
+            <div class="param-header">
+              <span class="param-name">target_shortlist</span>
+              <span class="param-val" id="val-target">5</span>
+            </div>
+            <input type="range" min="1" max="20" value="5" step="1" id="target-shortlist" aria-label="Target shortlist size" />
+            <div class="param-hint">The ideal length of each person's shortlist.</div>
+          </div>
+
+          <div class="param-block">
+            <div class="param-header">
+              <span class="param-name">max_appearances</span>
+              <span class="param-val" id="val-max">8</span>
+            </div>
+            <input type="range" min="1" max="20" value="8" step="1" id="max-appearances" aria-label="Max appearances" />
+            <div class="param-hint">The maximum number of shortlists someone should appear on.</div>
+          </div>
+
+          <div class="param-block">
+            <div class="param-header">
+              <span class="param-name">max_appearances_relaxed</span>
+              <span class="param-val" id="val-relaxed">10</span>
+            </div>
+            <input type="range" min="1" max="30" value="10" step="1" id="max-relaxed" aria-label="Max appearances relaxed" />
+            <div class="param-hint">The appearance cap ceiling when the pool is tight. The algorithm raises the cap one at a time from max_appearances up to this limit whenever a pass stalls. Should always be larger than max_appearances.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">Toggles</div>
+
+          <div class="toggle-block">
+            <div class="toggle-label-col">
+              <span class="toggle-name">sort_shortlists_by_score</span>
+              <span class="toggle-hint">Sorts each shortlist by descending score so best matches appear at the top. If off, shortlist order is random.</span>
+            </div>
+            <label class="toggle" aria-label="Sort shortlists by score">
+              <input type="checkbox" id="sort-by-score" checked />
+              <div class="toggle-track"></div>
+              <div class="toggle-thumb"></div>
+            </label>
+          </div>
+
+          <div class="toggle-block">
+            <div class="toggle-label-col">
+              <span class="toggle-name">print_scores</span>
+              <span class="toggle-hint">Print the match score next to each match name in the output.</span>
+            </div>
+            <label class="toggle" aria-label="Print scores">
+              <input type="checkbox" id="print-scores" />
+              <div class="toggle-track"></div>
+              <div class="toggle-thumb"></div>
+            </label>
+          </div>
+
+          <div class="toggle-block">
+            <div class="toggle-label-col">
+              <span class="toggle-name">collect_diagnostics</span>
+              <span class="toggle-hint">Collect and display diagnostic statistics about the matching run.</span>
+            </div>
+            <label class="toggle" aria-label="Collect diagnostics">
+              <input type="checkbox" id="collect-diagnostics" checked />
+              <div class="toggle-track"></div>
+              <div class="toggle-thumb"></div>
+            </label>
+          </div>
+        </div>
+
+        <button class="run-btn" id="run-btn" disabled>Generate Matches</button>
+      </div>
+
+      <!-- Right: output -->
+      <div class="output-col">
+
+        <div class="status-bar" id="status-bar">
+          <div class="status-left">
+            <div class="spinner" aria-hidden="true"></div>
+            <div class="dot" aria-hidden="true"></div>
+            <span id="status-text">Waiting for input</span>
+          </div>
+          <span class="status-timer" id="status-timer" style="display:none"></span>
+        </div>
+
+        <div class="card output-box">
+          <div class="output-tabs">
+            <button class="tab active" onclick="switchTab('matches')" id="tab-btn-matches">MATCHES</button>
+            <button class="tab" onclick="switchTab('diagnostics')" id="tab-btn-diagnostics">DIAGNOSTICS</button>
+          </div>
+
+          <div class="tab-panel active" id="tab-matches">
+            <div class="output-header">
+              <span class="output-meta" id="matches-meta">–</span>
+              <button class="copy-btn" id="copy-matches" onclick="copyOutput('matches-out', 'copy-matches')">Copy</button>
+            </div>
+            <pre class="output-pre placeholder" id="matches-out" data-placeholder="Match output will appear here…"></pre>
+          </div>
+
+          <div class="tab-panel" id="tab-diagnostics">
+            <div class="output-header">
+              <span class="output-meta">Algorithm diagnostics</span>
+              <button class="copy-btn" id="copy-diag" onclick="copyOutput('diag-out', 'copy-diag')">Copy</button>
+            </div>
+            <pre class="output-pre placeholder" id="diag-out" data-placeholder="Diagnostics will appear here…"></pre>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    // ── Replace with the actual [package] name from your Cargo.toml ──
+    const WASM_MODULE = './pkg/matchmaking.js';
+
+    let csvText = null;
+    let wasmModule = null;
+    let timerInterval = null;
+    let timerStart = null;
+
+    const fileInput = document.getElementById('file-input');
+    const dropzone  = document.getElementById('dropzone');
+    const runBtn    = document.getElementById('run-btn');
+
+    // ── File handling ──
+    function loadFile(file) {
+      if (!file || !file.name.toLowerCase().endsWith('.csv')) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        csvText = e.target.result;
+        document.getElementById('upload-main').textContent = file.name;
+        document.getElementById('upload-sub').textContent = (file.size / 1024).toFixed(1) + ' KB';
+        dropzone.classList.add('has-file');
+        runBtn.disabled = false;
+        setStatus('idle', 'Ready — click Generate Matches');
+      };
+      reader.readAsText(file);
+    }
+
+    fileInput.addEventListener('change', e => loadFile(e.target.files[0]));
+    dropzone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+    dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+    dropzone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropzone.classList.remove('drag');
+      loadFile(e.dataTransfer.files[0]);
+    });
+
+    // ── Sliders ──
+    [
+      ['target-shortlist', 'val-target'],
+      ['max-appearances',  'val-max'],
+      ['max-relaxed',      'val-relaxed'],
+    ].forEach(([id, outId]) => {
+      const el = document.getElementById(id);
+      document.getElementById(outId).textContent = el.value;
+      el.addEventListener('input', function () {
+        document.getElementById(outId).textContent = this.value;
+      });
+    });
+
+    // ── Status + timer ──
+    function setStatus(type, msg) {
+      const bar = document.getElementById('status-bar');
+      bar.className = 'status-bar ' + (type === 'idle' ? '' : type);
+      document.getElementById('status-text').textContent = msg;
+    }
+
+    function startTimer() {
+      const timerEl = document.getElementById('status-timer');
+      timerEl.style.display = 'block';
+      timerStart = Date.now();
+      timerInterval = setInterval(() => {
+        const elapsed = ((Date.now() - timerStart)).toFixed(0);
+        timerEl.textContent = elapsed + 'ms';
+      }, 100);
+    }
+
+    function stopTimer() {
+      clearInterval(timerInterval);
+      timerInterval = null;
+      return timerStart ? (Date.now() - timerStart) + 'ms' : '';
+    }
+
+    function hideTimer() {
+      const timerEl = document.getElementById('status-timer');
+      timerEl.style.display = 'none';
+      timerEl.textContent = '';
+    }
+
+    function clearOutputs() {
+      const matchesOut = document.getElementById('matches-out');
+      matchesOut.textContent = '';
+      matchesOut.className = 'output-pre placeholder';
+
+      const diagOut = document.getElementById('diag-out');
+      diagOut.textContent = '';
+      diagOut.className = 'output-pre placeholder';
+
+      document.getElementById('matches-meta').textContent = '–';
+      document.getElementById('tab-btn-diagnostics').style.opacity = '1';
+    }
+
+    // ── Tabs ──
+    window.switchTab = function (tab) {
+      ['matches', 'diagnostics'].forEach(t => {
+        document.getElementById('tab-btn-' + t).classList.toggle('active', t === tab);
+        document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+      });
+    };
+
+    // ── Copy ──
+    window.copyOutput = function (preId, btnId) {
+      const text = document.getElementById(preId).textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById(btnId);
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1500);
+      }).catch(() => {});
+    };
+
+    // ── Run ──
+    runBtn.addEventListener('click', async () => {
+      if (!csvText) return;
+
+      runBtn.disabled = true;
+      clearOutputs();
+      hideTimer();
+      setStatus('running', 'Loading WASM…');
+      startTimer();
+
+      try {
+        if (!wasmModule) {
+          const mod = await import(WASM_MODULE);
+          await mod.default();
+          wasmModule = mod;
+        }
+
+        setStatus('running', 'Computing matches…');
+
+        const result = wasmModule.generate_matches_from_csv_text(
+          csvText,
+          document.getElementById('sort-by-score').checked,
+          document.getElementById('print-scores').checked,
+          document.getElementById('collect-diagnostics').checked,
+          parseInt(document.getElementById('target-shortlist').value, 10),
+          parseInt(document.getElementById('max-appearances').value, 10),
+          parseInt(document.getElementById('max-relaxed').value, 10),
+        );
+
+        const elapsed = stopTimer();
+
+        // Populate matches
+        const matchesOut = document.getElementById('matches-out');
+        matchesOut.textContent = result.matches_text || '(no output)';
+        matchesOut.classList.remove('placeholder');
+
+        const count = (result.matches_text || '').split('\n')
+          .filter(l => l.startsWith('=====')).length;
+        document.getElementById('matches-meta').textContent =
+          count > 0 ? count + ' people matched' : '–';
+
+        // Populate diagnostics
+        const diagOut = document.getElementById('diag-out');
+        diagOut.textContent = result.diagnostics_text || '(diagnostics not collected)';
+        diagOut.classList.remove('placeholder');
+
+        const hasDiag = !!result.diagnostics_text;
+        document.getElementById('tab-btn-diagnostics').style.opacity = hasDiag ? '1' : '0.3';
+
+        setStatus('done', 'Done' + (elapsed ? ' in ' + elapsed : ''));
+        hideTimer();
+
+      } catch (err) {
+        const elapsed = stopTimer();
+        setStatus('error', 'Error' + (elapsed ? ' after ' + elapsed : '') + ': ' + String(err).slice(0, 80));
+        hideTimer();
+
+        const matchesOut = document.getElementById('matches-out');
+        matchesOut.textContent = String(err);
+        matchesOut.classList.remove('placeholder');
+      } finally {
+        runBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
