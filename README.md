@@ -1,4 +1,3 @@
-<img width="1256" height="830" alt="gui" src="https://github.com/user-attachments/assets/8375bd52-910b-49f6-9e1d-118f16e4ac56" />
 # Matchmaking
 Generate shortlists of compatible dating partners, based on input dating questionnaire.
 
