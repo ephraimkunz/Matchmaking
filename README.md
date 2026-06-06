@@ -152,6 +152,8 @@ Follow steps 1-4 above. Then:
 5. A full run against some data might look like `cargo run -- --sort-shortlists-by-score --print-scores <path to downloaded responses CSV>`
 6. `cargo test` runs tests. `cargo fmt` runs code formatter. `cargo clippy` runs linter.
 7. After pushing changes to Github, create a release and the publish_release Github workflow will automatically kickoff builds for macOS, Windows, and Linux and attach the built artifacts to the release.
+8. Pushing to Github will build and deploy the GUI onto this repo's Github pages. This GUI is a static website that uses WebAssembly to run the matchmaking code in the browser.<img width="1256" height="830" alt="gui" src="https://github.com/user-attachments/assets/45907d62-e78c-4d30-ae67-7cf7c2b65128" />
+
 
 ### Profiling performance
 1. `cargo build --profile profiling`
