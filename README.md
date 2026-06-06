@@ -1,7 +1,16 @@
 # Matchmaking
 Generate shortlists of compatible dating partners, based on input dating questionnaire.
 
-## Full flow
+## Graphical user interace
+1. Create a new dating questionnaire for your group. Visit https://docs.google.com/forms/d/1EbsN5rbwfCNrvdisgqDrTro6-_CVJKSv3AmnOOR17JM/template/preview and click "Use Template" in the upper right.
+2. Change the title to remove the word "[Template]".
+3. Click Publish and share the link with those taking the survey. Do not change question values, ordering, or add new questions without updating the code in this repo to handle the new format and / or ordering. This repo is tightly coupled with the survey as it needs to read the responses and do a bunch of computation on them.
+4. Once you are ready to do matchmaking, download the responses as a CSV file. Ensure the CSV file is unzipped on your computer and remove the zipped file. If you want a sample file for testing, download one of the sample files in https://github.com/ephraimkunz/Matchmaking/tree/main/test_data.
+5. Visit https://ephraimkunz.github.io/Matchmaking/ and use the GUI to upload the CSV file and run matchmaking.
+
+
+
+## Command line interace
 1. Create a new dating questionnaire for your group. Visit https://docs.google.com/forms/d/1EbsN5rbwfCNrvdisgqDrTro6-_CVJKSv3AmnOOR17JM/template/preview and click "Use Template" in the upper right.
 2. Change the title to remove the word "[Template]".
 3. Click Publish and share the link with those taking the survey. Do not change question values, ordering, or add new questions without updating the code in this repo to handle the new format and / or ordering. This repo is tightly coupled with the survey as it needs to read the responses and do a bunch of computation on them.
