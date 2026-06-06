@@ -1,0 +1,15 @@
+{
+  "name": "matchmaking",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "matchmaking_bg.wasm",
+    "matchmaking.js",
+    "matchmaking.d.ts"
+  ],
+  "main": "matchmaking.js",
+  "types": "matchmaking.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
