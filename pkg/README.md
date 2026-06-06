@@ -1,3 +1,4 @@
+<img width="1256" height="830" alt="gui" src="https://github.com/user-attachments/assets/8375bd52-910b-49f6-9e1d-118f16e4ac56" />
 # Matchmaking
 Generate shortlists of compatible dating partners, based on input dating questionnaire.
 
@@ -8,6 +9,7 @@ Generate shortlists of compatible dating partners, based on input dating questio
 4. Once you are ready to do matchmaking, download the responses as a CSV file. Ensure the CSV file is unzipped on your computer and remove the zipped file. If you want a sample file for testing, download one of the sample files in https://github.com/ephraimkunz/Matchmaking/tree/main/test_data.
 5. Visit https://ephraimkunz.github.io/Matchmaking/ and use the GUI to upload the CSV file and run matchmaking.
 
+<img width="1256" height="830" alt="gui" src="https://github.com/user-attachments/assets/4ae04aaa-3e24-4b1c-b49a-72cd68102a3e" />
 
 
 ## Command line interace
