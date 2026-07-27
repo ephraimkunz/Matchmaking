@@ -226,41 +226,43 @@ Answer honestly — there are no right or wrong answers, and people in your comp
 
 Name, gender, age. Email is collected separately by Google Forms. Age is restricted to `Age::MIN_AGE`–`Age::MAX_AGE` (checked at the parser-level and by validations in the Google Form).
 
-### Section A — Dealbreakers
+### Dealbreakers
 
 Hard filters on fundamental life-path compatibility (e.g., children, marriage timeline, geography, religious commitment). Not scored. Pairs failing any check are removed before scoring. Filter rules are bidirectional — both people's stated tolerances are checked in the same call.
 
-### Section B — Core Values
+### Core Values
 
 Questions on values relevant to long-term compatibility. Each carries an importance rating chosen by the respondent, making this the highest-signal section.
 
-### Section C — Relationship Dynamics
+### Relationship Dynamics
 
 Questions about how someone operates inside a relationship. A subset are importance-weighted (the high-signal items); the remainder use a fixed weight.
 
-### Section D — Lifestyle & Money
+### Lifestyle & Money
 
 Questions about spending, ambition, and practical life preferences. All fixed-weight. Desired number of children appears here as a soft numeric signal, not a dealbreaker.
 
-### Section E — Self-description
+### Self-description
 
-Questions where participants describe their own traits and tendencies. All 15 are scored as direct similarity. Eight of them also feed the Section F cross-match — they score twice.
+Questions where participants describe their own traits and tendencies. All 15 are scored as direct similarity. Eight of them also feed the Partner Preferences cross-match — they score twice.
 
-### Section F — Partner Preferences
+### Partner Preferences
 
 Questions about what traits and behaviors someone wants in a partner. Eight are cross-matched against the partner's self-description (who you want ≠ who you are). Two are scored as direct similarity.
 
-### Section G — Social Style
+### Social Style
 
 Questions about social temperament and how someone spends time with others. Direct similarity.
 
-### Section H — Interests
+### Interests
 
 Questions about hobbies and recreational interests. Direct similarity, but down-weighted because shared interests are a weaker predictor of long-term compatibility than shared values or relationship style.
 
-### Section I — Free-response
+### Free-response
 
 Participants choose a few prompts to answer in their own words. Not scored. Used to populate the human-readable match card.
+
+Section order above is documentation-only and does not need to match the live questionnaire's order — the parser matches each section by name, not by position, so this list can be resorted freely without touching `src/parsing.rs`. If you reorder the actual questionnaire, keep `questionnaire_structure.json` (regenerated from the Google Form) and `src/parsing.rs`'s section-parsing call order in sync with each other; this file has no ordering dependency to maintain.
 
 ---
 
@@ -270,7 +272,7 @@ Participants choose a few prompts to answer in their own words. Not scored. Used
 
 - Each participant's 4-point answers are normalized to 0.0–1.0 by `FourChoiceResponse::normalized()`: `(value - 1) / 3`.
 - Children count is normalized by `NumChildren::normalized()`.
-- Importance ratings (B and C-weighted only) are normalized by `FiveChoiceWeight::normalized()` to the range `MIN_NORMALIZED`–`MAX_NORMALIZED`, so "I don't care if we agree" still counts a little (never zeroes a question) and "We MUST agree on this" caps at `MAX_NORMALIZED` per question.
+- Importance ratings (Core Values and the weighted subset of Relationship Dynamics only) are normalized by `FiveChoiceWeight::normalized()` to the range `MIN_NORMALIZED`–`MAX_NORMALIZED`, so "I don't care if we agree" still counts a little (never zeroes a question) and "We MUST agree on this" caps at `MAX_NORMALIZED` per question.
 - An anti-gaming person-level cap (`PERSON_BOOST_CAP`): if a respondent's average importance across all weighted questions exceeds `PERSON_BOOST_CAP`, every weight they set is scaled down proportionally. Pickiness is a still signal; it just can't overwhelm every question.
 
 ### Step 1 — Filter
@@ -281,9 +283,9 @@ For every opposite-sex pair, evaluate the four dealbreaker rules in order. If an
 
 For one direction (A → B), i.e., how well does B satisfy A's preferences:
 
-- For every importance-weighted question (B, first 8 of C): compute `similarity = 1 − |a − b|`, multiply by A's capped importance weight and the section weight, accumulate into a running total and weight sum.
-- For every fixed-weight question (last 3 of C, D, E-direct, G, H): compute `similarity = 1 − |a − b|`, multiply by the section weight, accumulate.
-- For each of the 8 cross-match pairs (F preference → partner's matching E trait): compute `similarity = 1 − |a_F − b_E|`, multiply by `PARTNER_PREFERENCES_SECTION_WEIGHT`.
+- For every importance-weighted question (Core Values, first 8 of Relationship Dynamics): compute `similarity = 1 − |a − b|`, multiply by A's capped importance weight and the section weight, accumulate into a running total and weight sum.
+- For every fixed-weight question (last 3 of Relationship Dynamics, Lifestyle & Money, Self-description direct, Social Style, Interests): compute `similarity = 1 − |a − b|`, multiply by the section weight, accumulate.
+- For each of the 8 cross-match pairs (Partner Preferences → partner's matching Self-description trait): compute `similarity = 1 − |a_F − b_E|`, multiply by `PARTNER_PREFERENCES_SECTION_WEIGHT`.
 - For age: compute proximity over the `Age::MIN_AGE`–`Age::MAX_AGE` span, weighted at `AGE_QUESTION_WEIGHT`.
 - Return `total / weight_sum`.
 
@@ -320,19 +322,19 @@ Each card lists the matched person's name, email, and the free-response hooks th
 
 | Section | Scoring | Section weight constant |
 |---|---|---|
-| A — Dealbreakers | Filter only | — |
-| B — Core Values | Importance-weighted similarity | `CORE_VALUES_SECTION_WEIGHT` |
-| C — Relationship dynamics (weighted) | Importance-weighted similarity | `RELATIONSHIP_DYNAMICS_SECTION_WEIGHT` |
-| C — Relationship dynamics (fixed) | Fixed similarity | `RELATIONSHIP_DYNAMICS_SECTION_WEIGHT` |
-| D — Lifestyle & money | Fixed similarity | `LIFESTYLE_MONEY_SECTION_WEIGHT` (children also ×`NUM_CHILDREN_QUESTION_WEIGHT`) |
-| E — Self-description | Direct similarity (all 15; 8 also feed F cross-match) | `SELF_DESCRIPTION_SECTION_WEIGHT` |
-| F — Partner preferences | Cross-match + direct | `PARTNER_PREFERENCES_SECTION_WEIGHT` |
-| G — Social style | Fixed similarity | `SOCIAL_STYLE_SECTION_WEIGHT` |
-| H — Interests | Fixed similarity | `INTERESTS_SECTION_WEIGHT` |
-| I — Free-response | Not scored | — |
+| Dealbreakers | Filter only | — |
+| Core Values | Importance-weighted similarity | `CORE_VALUES_SECTION_WEIGHT` |
+| Relationship dynamics (weighted) | Importance-weighted similarity | `RELATIONSHIP_DYNAMICS_SECTION_WEIGHT` |
+| Relationship dynamics (fixed) | Fixed similarity | `RELATIONSHIP_DYNAMICS_SECTION_WEIGHT` |
+| Lifestyle & money | Fixed similarity | `LIFESTYLE_MONEY_SECTION_WEIGHT` (children also ×`NUM_CHILDREN_QUESTION_WEIGHT`) |
+| Self-description | Direct similarity (all 15; 8 also feed Partner Preferences cross-match) | `SELF_DESCRIPTION_SECTION_WEIGHT` |
+| Partner preferences | Cross-match + direct | `PARTNER_PREFERENCES_SECTION_WEIGHT` |
+| Social style | Fixed similarity | `SOCIAL_STYLE_SECTION_WEIGHT` |
+| Interests | Fixed similarity | `INTERESTS_SECTION_WEIGHT` |
+| Free-response | Not scored | — |
 | Demographics — Age | Linear proximity over `MIN_AGE`–`MAX_AGE` span | `AGE_QUESTION_WEIGHT` |
 
-**Importance-weighted questions:** 22 (B + first 8 of C). Per-question cap `MAX_NORMALIZED`; per-person average cap `PERSON_BOOST_CAP`.
+**Importance-weighted questions:** 22 (Core Values + first 8 of Relationship Dynamics). Per-question cap `MAX_NORMALIZED`; per-person average cap `PERSON_BOOST_CAP`.
 
 ## Key design decisions
 
@@ -343,8 +345,8 @@ Each card lists the matched person's name, email, and the free-response hooks th
 | Importance weight `MIN_NORMALIZED`–`MAX_NORMALIZED` | "I don't care" never zeroes a question; "must match" caps at `MAX_NORMALIZED` per question. |
 | Per-person boost cap (`PERSON_BOOST_CAP`) | Prevents gaming by marking everything "must match". |
 | `mutual_score = 0.8·min + 0.2·midpoint` | Punishes one-sided matches. With pure averaging, a perfect/poor pair scores the same as two moderate pairs. |
-| F cross-matched against partner's E | Who you want ≠ who you are. |
-| E at `SELF_DESCRIPTION_SECTION_WEIGHT` (0.6) | The 8 cross-matched E items score twice (direct + F cross-match); the lower weight compensates. |
+| Partner Preferences cross-matched against partner's Self-description | Who you want ≠ who you are. |
+| Self-description at `SELF_DESCRIPTION_SECTION_WEIGHT` (0.6) | The 8 cross-matched Self-description items score twice (direct + Partner Preferences cross-match); the lower weight compensates. |
 | Children count at `NUM_CHILDREN_QUESTION_WEIGHT` × `LIFESTYLE_MONEY_SECTION_WEIGHT` | A real signal, but a conversation — not an automatic disqualification. |
 | Round-robin with per-round shuffle | Eliminates first-pick order bias. |
 | `--max-appearances` cap, ramped +1 per stall to `--max-appearances-relaxed` | Prevents popular profiles from dominating every shortlist; quality degrades as little as necessary before expanding capacity. |
