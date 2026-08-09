@@ -220,7 +220,17 @@ I could spend hours getting lost in a book or creative project
 
 ### Instructions shown to participants
 
-Answer honestly — there are no right or wrong answers, and people in your compatibility list won't be able to see your responses (with the exception of the free-response questions). Most questions use a 4-point scale. For some questions you'll also rate how important it is that your partner feels the same way; take your time on those, they have the most impact on your matches. The entire questionnaire should take 20–30 minutes to complete. At the end you'll write a few short answers that your top matches will be able to view.
+Answer honestly - there are no right or wrong answers, and others won't be able to see your responses (with the exception of the free-response questions). Most questions use a 4-point scale. For some questions, you'll also rate how important it is to you that your partner feels the same way on that question. The entire questionnaire should take 20 - 40 minutes to complete.
+
+Near the end, you'll write a few short answers to free-response questions. Your responses to these questions will be visible to other people if you appear on their compatibility list.
+
+
+
+How it works (if you are curious)
+
+We will take all of the survey data and feed it into our matching algorithm, described here. The result will be a compatibility list for each person who completed the survey, containing, in no particular order, those with whom you are most compatible. 
+
+This list is not symmetric - you will not automatically appear on someone else's list just because they appear on yours. Your list shows you who you are most compatible with and their list shows who they are most compatible with, and those two sets may have varying degrees of overlap.
 
 ### Demographics
 
