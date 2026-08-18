@@ -29,12 +29,14 @@ pub fn generate_matches_from_csv_text(
 
     let (matches, diagnostics) = matching::create_matches(
         &responses,
+        None,
         sort_shortlists_by_score,
         print_scores,
         collect_diagnostics,
         target_shortlist,
         max_appearances,
         max_appearances_relaxed,
+        None
     );
 
     // Use Display impl you already have — no new serialization needed
