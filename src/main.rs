@@ -44,18 +44,29 @@ struct Args {
     /// continuing to fill toward `target_shortlist`. Should always be larger than `max_appearances`.
     #[arg(short = 'r', long, default_value_t = 10)]
     max_appearances_relaxed: usize,
+
+    /// The random seed to use for reproducible results. If one is not provided, the rng will be seeded randomly
+    /// (but the seed will still be output along with the diagnostics).
+    #[arg(long)]
+    seed: Option<u64>,
+
+    /// If provided, the person with this id (email)'s shortlist is printed.
+    #[arg(long, value_name = "PERSON_ID")]
+    debug_print_candidate_list: Option<String>,
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
     let (matches, diagnostics) = parse_and_generate_matches(
         args.input_file_name,
+        args.seed,
         args.sort_shortlists_by_score,
         args.print_scores,
         args.diagnostics,
         args.target_shortlist,
         args.max_appearances,
         args.max_appearances_relaxed,
+        args.debug_print_candidate_list,
     )?;
 
     let out = matches.to_string();
@@ -89,12 +100,14 @@ mod tests {
         let args = Args::try_parse_from(input).unwrap();
         let (matches, _) = parse_and_generate_matches(
             args.input_file_name,
+            args.seed,
             args.sort_shortlists_by_score,
             args.print_scores,
             args.diagnostics,
             args.target_shortlist,
             args.max_appearances,
             args.max_appearances_relaxed,
+            args.debug_print_candidate_list,
         )
         .unwrap();
         let output = format!("{matches}");
