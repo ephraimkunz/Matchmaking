@@ -2,7 +2,7 @@
 
 ## Problem statement
 
-I'm hosting an event in my LDS mid-singles ward for 100–200 people. Participants fill out a questionnaire and receive a shortlist of compatible opposite-sex matches. We may then host a speed-dating event of some kind, like a 3-course meal where each person picks someone from their shortlist for each course. We're all the same religion and the goal is to surface compatible long-term dating prospects that could lead to marriage.
+I'm hosting an event in my LDS mid-singles ward for 100-200 people. Participants fill out a questionnaire and receive a shortlist of compatible opposite-sex matches. We may then host a speed-dating event of some kind, like a 3-course meal where each person picks someone from their shortlist for each course. We're all the same religion and the goal is to surface compatible long-term dating prospects that could lead to marriage.
 
 ## Prior art and why this approach
 
@@ -12,13 +12,13 @@ Some colleges, such as Stanford, run the Marriage Pact (marriagepact.com). The c
 
 The Marriage Pact and Matchbox question banks are not public, but a partial set has been gathered from Reddit (preserved in the section below for reference).
 
-[Stable matching](https://en.wikipedia.org/wiki/Stable_matching_problem) is a related problem but requires every participant to rank every other participant — impractical at this scale. So the goal is **not** stable matching; it's **clustering compatible individuals and producing high-quality shortlists**. Optionally, a follow-up Gale-Shapley round could run on top of those shortlists, but that's out of scope for v1.
+[Stable matching](https://en.wikipedia.org/wiki/Stable_matching_problem) is a related problem but requires every participant to rank every other participant, which is impractical at this scale. The goal is clustering compatible individuals and producing high-quality shortlists. Optionally, a follow-up Gale-Shapley round could run on top of those shortlists, but that is out of scope for v1.
 
 Items kept in mind during the design:
 
-- **Length:** 60–90 questions seems to be the sweet spot. The current questionnaire has ~75 scored questions plus dealbreakers and free-response.
+- **Length:** 60-90 questions seems to be the sweet spot. The current questionnaire has ~75 scored questions plus dealbreakers and free-response.
 - **Selective importance weighting:** OKCupid-style importance applied to a subset of high-signal questions, not all of them. Per-person caps prevent gaming by marking everything "must agree."
-- **Coarse 4-point scale:** Eliminates mood-swing noise and forces a lean — there is no neutral midpoint.
+- **Coarse 4-point scale:** Eliminates mood-swing noise and forces a lean - there is no neutral midpoint.
 
 ## Marriage Pact questions (gathered from Reddit, for reference)
 
@@ -40,7 +40,7 @@ Social activism is important to me
 
 I would consider my friends quiet
 
-Would you rather be left at the altar or leave someone at the altar?
+Do you prefer to be the person who is left on their wedding day or the person who leaves someone on their wedding day?
 
 People in positions of authority are usually right
 
@@ -224,21 +224,19 @@ Answer honestly - there are no right or wrong answers, and others won't be able 
 
 Near the end, you'll write a few short answers to free-response questions. Your responses to these questions will be visible to other people if you appear on their compatibility list.
 
-
-
 How it works (if you are curious)
 
-We will take all of the survey data and feed it into our matching algorithm, described here. The result will be a compatibility list for each person who completed the survey, containing, in no particular order, those with whom you are most compatible. 
+We will take all of the survey data and feed it into our matching algorithm, described here. The result will be a compatibility list for each person who completed the survey, containing, in no particular order, those with whom you are most compatible.
 
 This list is not symmetric - you will not automatically appear on someone else's list just because they appear on yours. Your list shows you who you are most compatible with and their list shows who they are most compatible with, and those two sets may have varying degrees of overlap.
 
 ### Demographics
 
-Name, gender, age. Email is collected separately by Google Forms. Age is restricted to `Age::MIN_AGE`–`Age::MAX_AGE` (checked at the parser-level and by validations in the Google Form).
+Name, gender, age. Email is collected separately by Google Forms. Age is restricted to `Age::MIN_AGE`-`Age::MAX_AGE` (checked at the parser-level and by validations in the Google Form).
 
 ### Dealbreakers
 
-Hard filters on fundamental life-path compatibility (e.g., children, marriage timeline, geography, religious commitment). Not scored. Pairs failing any check are removed before scoring. Filter rules are bidirectional — both people's stated tolerances are checked in the same call.
+Hard filters on fundamental life-path compatibility (e.g., children, marriage timeline, geography, religious commitment). These are not scored. Pairs failing any check are removed before scoring. Filter rules are bidirectional; both people's stated tolerances are checked in the same call.
 
 ### Core Values
 
@@ -250,11 +248,11 @@ Questions about how someone operates inside a relationship. A subset are importa
 
 ### Lifestyle & Money
 
-Questions about spending, ambition, and practical life preferences. All fixed-weight. Desired number of children appears here as a soft numeric signal, not a dealbreaker.
+These questions cover spending habits, personal ambition, and practical lifestyle preferences. All items carry the same weight. The desired number of children is included as a numeric indicator rather than a strict requirement.
 
 ### Self-description
 
-Questions where participants describe their own traits and tendencies. All 15 are scored as direct similarity. Eight of them also feed the Partner Preferences cross-match — they score twice.
+Questions where participants describe their own traits and tendencies. All 15 are scored as direct similarity. Eight of them also feed the Partner Preferences cross-match and score twice.
 
 ### Partner Preferences
 
@@ -272,7 +270,7 @@ Questions about hobbies and recreational interests. Direct similarity, but down-
 
 Participants choose a few prompts to answer in their own words. Not scored. Used to populate the human-readable match card.
 
-Section order above is documentation-only and does not need to match the live questionnaire's order — the parser matches each section by name, not by position, so this list can be resorted freely without touching `src/parsing.rs`. If you reorder the actual questionnaire, keep `questionnaire_structure.json` (regenerated from the Google Form) and `src/parsing.rs`'s section-parsing call order in sync with each other; this file has no ordering dependency to maintain.
+Section order above is documentation-only and does not need to match the live questionnaire's order. The parser matches each section by name, not by position, so this list can be resorted freely without touching `src/parsing.rs`. If you reorder the actual questionnaire, keep `questionnaire_structure.json` (regenerated from the Google Form) and `src/parsing.rs`'s section-parsing call order in sync with each other. This file has no ordering dependency to maintain.
 
 ---
 
@@ -280,49 +278,49 @@ Section order above is documentation-only and does not need to match the live qu
 
 ### Inputs
 
-- Each participant's 4-point answers are normalized to 0.0–1.0 by `FourChoiceResponse::normalized()`: `(value - 1) / 3`.
+- Each participant's 4-point answers are normalized to 0.0-1.0 by `FourChoiceResponse::normalized()`: `(value - 1) / 3`.
 - Children count is normalized by `NumChildren::normalized()`.
-- Importance ratings (Core Values and the weighted subset of Relationship Dynamics only) are normalized by `FiveChoiceWeight::normalized()` to the range `MIN_NORMALIZED`–`MAX_NORMALIZED`, so "I don't care if we agree" still counts a little (never zeroes a question) and "We MUST agree on this" caps at `MAX_NORMALIZED` per question.
+- Importance ratings (Core Values and the weighted subset of Relationship Dynamics only) are normalized by `FiveChoiceWeight::normalized()` to the range `MIN_NORMALIZED`-`MAX_NORMALIZED`, so "I don't care if we agree" still counts a little (never zeroes a question) and "We MUST agree on this" caps at `MAX_NORMALIZED` per question.
 - An anti-gaming person-level cap (`PERSON_BOOST_CAP`): if a respondent's average importance across all weighted questions exceeds `PERSON_BOOST_CAP`, every weight they set is scaled down proportionally. Pickiness is a still signal; it just can't overwhelm every question.
 
-### Step 1 — Filter
+### Step 1 - Filter
 
-For every opposite-sex pair, evaluate the four dealbreaker rules in order. If any fails the pair is dropped before scoring. The check is bidirectional — both A's and B's tolerances are evaluated in the same call.
+For every opposite-sex pair, evaluate the four dealbreaker rules in order. If any rule fails, the pair is dropped before scoring. The check is bidirectional. Both A's and B's tolerances are evaluated in the same call.
 
-### Step 2 — Directional score
+### Step 2 - Directional score
 
 For one direction (A → B), i.e., how well does B satisfy A's preferences:
 
 - For every importance-weighted question (Core Values, first 8 of Relationship Dynamics): compute `similarity = 1 − |a − b|`, multiply by A's capped importance weight and the section weight, accumulate into a running total and weight sum.
 - For every fixed-weight question (last 3 of Relationship Dynamics, Lifestyle & Money, Self-description direct, Social Style, Interests): compute `similarity = 1 − |a − b|`, multiply by the section weight, accumulate.
 - For each of the 8 cross-match pairs (Partner Preferences → partner's matching Self-description trait): compute `similarity = 1 − |a_F − b_E|`, multiply by `PARTNER_PREFERENCES_SECTION_WEIGHT`.
-- For age: compute proximity over the `Age::MIN_AGE`–`Age::MAX_AGE` span, weighted at `AGE_QUESTION_WEIGHT`.
+- For age: compute proximity over the `Age::MIN_AGE`-`Age::MAX_AGE` span, weighted at `AGE_QUESTION_WEIGHT`.
 - Return `total / weight_sum`.
 
 Pickiness is signal: A's importance ratings only affect `score(A → B)`.
 
-### Step 3 — Mutual score
+### Step 3 - Mutual score
 
 ```
 mutual_score(A, B) = 0.8 × min(score(A→B), score(B→A))
                    + 0.2 × midpoint(score(A→B), score(B→A))
 ```
 
-The min term punishes one-sided matches where one person would be miserable. The midpoint term breaks ties. With pure averaging, a perfect/poor pair scores the same as two moderate pairs — the second is the better real-world match.
+The min term punishes one-sided matches where one person would be miserable. The midpoint term breaks ties. With pure averaging, a perfect/poor pair scores the same as two moderate pairs. The second is the better real-world match.
 
-### Step 4 — Build candidate ranking
+### Step 4 - Build candidate ranking
 
 For every participant, sort surviving opposite-sex candidates by `mutual_score` descending.
 
-### Step 5 — Round-robin shortlist assignment
+### Step 5 - Round-robin shortlist assignment
 
-Each round, shuffle the order of incomplete participants, then give each person their next-best available candidate — skipping anyone already on their shortlist, and skipping anyone who has been picked `--max-appearances` times. Iterate until every shortlist reaches `--target-shortlist` length, or a full pass makes no progress.
+Each round, shuffle the order of incomplete participants, then give each person their next-best available candidate. Skip anyone already on their shortlist, and skip anyone who has been picked `--max-appearances` times. Iterate until every shortlist reaches `--target-shortlist` length, or a full pass makes no progress.
 
-If the algorithm stalls at the current cap, the cap is raised by one and the process repeats — always targeting `--target-shortlist`, never settling for less. This continues until either every shortlist is full, or the cap has reached `--max-appearances-relaxed` and no further progress is possible. All three values are tunable CLI flags with sensible defaults for the 100–200 person use case.
+If the algorithm stalls at the current cap, the cap is raised by one and the process repeats to reach `--target-shortlist`. This continues until either every shortlist is full, or the cap has reached `--max-appearances-relaxed` and no further progress is possible. All three values are tunable CLI flags with sensible defaults for the 100-200 person use case.
 
 The per-round shuffle prevents any single person from systematically getting first pick. The appearance cap prevents a few popular profiles from absorbing every shortlist.
 
-### Step 6 — Render match cards
+### Step 6 - Render match cards
 
 Each card lists the matched person's name, email, and the free-response hooks they chose. By default shortlists are in randomized order so the participant doesn't anchor on the top score. `--sort-shortlists-by-score` and `--print-scores` expose the underlying ranking when needed.
 
@@ -332,7 +330,7 @@ Each card lists the matched person's name, email, and the free-response hooks th
 
 | Section | Scoring | Section weight constant |
 |---|---|---|
-| Dealbreakers | Filter only | — |
+| Dealbreakers | Filter only | - |
 | Core Values | Importance-weighted similarity | `CORE_VALUES_SECTION_WEIGHT` |
 | Relationship dynamics (weighted) | Importance-weighted similarity | `RELATIONSHIP_DYNAMICS_SECTION_WEIGHT` |
 | Relationship dynamics (fixed) | Fixed similarity | `RELATIONSHIP_DYNAMICS_SECTION_WEIGHT` |
@@ -341,8 +339,8 @@ Each card lists the matched person's name, email, and the free-response hooks th
 | Partner preferences | Cross-match + direct | `PARTNER_PREFERENCES_SECTION_WEIGHT` |
 | Social style | Fixed similarity | `SOCIAL_STYLE_SECTION_WEIGHT` |
 | Interests | Fixed similarity | `INTERESTS_SECTION_WEIGHT` |
-| Free-response | Not scored | — |
-| Demographics — Age | Linear proximity over `MIN_AGE`–`MAX_AGE` span | `AGE_QUESTION_WEIGHT` |
+| Free-response | Not scored | - |
+| Demographics - Age | Linear proximity over `MIN_AGE`-`MAX_AGE` span | `AGE_QUESTION_WEIGHT` |
 
 **Importance-weighted questions:** 22 (Core Values + first 8 of Relationship Dynamics). Per-question cap `MAX_NORMALIZED`; per-person average cap `PERSON_BOOST_CAP`.
 
@@ -352,12 +350,12 @@ Each card lists the matched person's name, email, and the free-response hooks th
 |---|---|
 | 4-point input, no midpoint | Forces a lean; eliminates mood-swing noise. |
 | Linear similarity on bucketed inputs | Simple and stable on a coarse scale. |
-| Importance weight `MIN_NORMALIZED`–`MAX_NORMALIZED` | "I don't care" never zeroes a question; "must match" caps at `MAX_NORMALIZED` per question. |
+| Importance weight `MIN_NORMALIZED`-`MAX_NORMALIZED` | "I don't care" never zeroes a question; "must match" caps at `MAX_NORMALIZED` per question. |
 | Per-person boost cap (`PERSON_BOOST_CAP`) | Prevents gaming by marking everything "must match". |
 | `mutual_score = 0.8·min + 0.2·midpoint` | Punishes one-sided matches. With pure averaging, a perfect/poor pair scores the same as two moderate pairs. |
 | Partner Preferences cross-matched against partner's Self-description | Who you want ≠ who you are. |
 | Self-description at `SELF_DESCRIPTION_SECTION_WEIGHT` (0.6) | The 8 cross-matched Self-description items score twice (direct + Partner Preferences cross-match); the lower weight compensates. |
-| Children count at `NUM_CHILDREN_QUESTION_WEIGHT` × `LIFESTYLE_MONEY_SECTION_WEIGHT` | A real signal, but a conversation — not an automatic disqualification. |
+| Children count at `NUM_CHILDREN_QUESTION_WEIGHT` × `LIFESTYLE_MONEY_SECTION_WEIGHT` | A real signal, but a conversation - not an automatic disqualification. |
 | Round-robin with per-round shuffle | Eliminates first-pick order bias. |
 | `--max-appearances` cap, ramped +1 per stall to `--max-appearances-relaxed` | Prevents popular profiles from dominating every shortlist; quality degrades as little as necessary before expanding capacity. |
 | No Gale-Shapley | Stable matching requires full mutual rankings; impractical at this scale. Shortlists are sufficient for the speed-dating event. |

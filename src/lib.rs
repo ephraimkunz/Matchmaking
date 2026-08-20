@@ -36,7 +36,7 @@ pub fn generate_matches_from_csv_text(
         target_shortlist,
         max_appearances,
         max_appearances_relaxed,
-        None
+        None,
     );
 
     // Use Display impl you already have — no new serialization needed

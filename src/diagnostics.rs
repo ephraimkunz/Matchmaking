@@ -22,7 +22,7 @@ pub struct Diagnostics {
     pub shortlist_len_histogram: Vec<usize>,
     pub appearance_max: usize,
     pub appearance_stddev: f32,
-    pub zero_appearance_participants: usize,
+    pub zero_appearance_participants: Vec<String>,
     // Quality — histogram of served scores, auto-ranged over the observed [min, max].
     pub histogram: [usize; HISTOGRAM_BUCKETS],
     pub histogram_range: Option<(f32, f32)>, // (min_served, max_served); None if no scores served
@@ -47,7 +47,7 @@ impl Default for Diagnostics {
             shortlist_len_histogram: Vec::new(),
             appearance_max: 0,
             appearance_stddev: 0.0,
-            zero_appearance_participants: 0,
+            zero_appearance_participants: vec![],
             histogram: [0; HISTOGRAM_BUCKETS],
             histogram_range: None,
             rank_regret_mean: 0.0,
@@ -128,8 +128,10 @@ impl Display for Diagnostics {
         )?;
         writeln!(
             f,
-            "  {:<C_LW$}{:>C_VW$}",
-            "zero_appearances", self.zero_appearance_participants
+            "  {:<C_LW$}{:>C_VW$}: {:?}",
+            "zero_appearances",
+            self.zero_appearance_participants.len(),
+            self.zero_appearance_participants
         )?;
         writeln!(f)?;
         writeln!(f, "  shortlist lengths")?;
@@ -278,16 +280,16 @@ pub fn build_diagnostics(
 
     // Appearance stats
     let appearance_max = ss.appearance_count.values().copied().max().unwrap_or(0);
-    println!(
-        "ektest - {:?}",
-        ids.iter()
-            .filter(|id| ss.appearance_count.get(**id).copied().unwrap_or(0) == 0)
-            .collect::<Vec<_>>()
-    );
     let zero_appearance_participants = ids
         .iter()
-        .filter(|id| ss.appearance_count.get(**id).copied().unwrap_or(0) == 0)
-        .count();
+        .filter_map(|id| {
+            if ss.appearance_count.get(*id).copied().unwrap_or(0) == 0 {
+                Some(id.to_string())
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
     let counts_with_zeros: Vec<f32> = ids
         .iter()
         .map(|id| ss.appearance_count.get(*id).copied().unwrap_or(0) as f32)
