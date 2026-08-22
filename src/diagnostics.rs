@@ -406,3 +406,69 @@ pub fn build_diagnostics(
         mutual_rate,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const TARGET_SHORTLIST: usize = 10;
+
+    fn csv_path() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("test_data/many_generated.csv")
+    }
+
+    fn run_pipeline(collect_diagnostics: bool, seed: Option<u64>) -> (usize, Option<Diagnostics>) {
+        let mut reader = csv::Reader::from_path(csv_path()).expect("test CSV should exist");
+        let responses =
+            crate::parsing::parse_responses(&mut reader).expect("test CSV should parse");
+        let (_matches, diagnostics) = crate::matching::create_matches(
+            &responses,
+            seed,
+            false,
+            false,
+            collect_diagnostics,
+            TARGET_SHORTLIST,
+            TARGET_SHORTLIST,
+            TARGET_SHORTLIST * 2 + 5,
+            None,
+        );
+        (responses.len(), diagnostics)
+    }
+
+    #[test]
+    fn smoke_display_renders_default_diagnostics() {
+        let text = Diagnostics::default().to_string();
+        assert!(!text.is_empty());
+        assert!(text.contains("CONVERGENCE"));
+    }
+
+    #[test]
+    fn smoke_diagnostics_invariants_on_real_data() {
+        let (total, diagnostics) = run_pipeline(true, Some(42));
+        let diags = diagnostics.expect("diagnostics should be collected when enabled");
+
+        assert_eq!(diags.seed, 42);
+        assert!(total > 0);
+        assert_eq!(diags.male_count + diags.female_count, total);
+        assert_eq!(diags.shortlist_len_histogram.len(), TARGET_SHORTLIST + 1);
+        assert_eq!(diags.shortlist_len_histogram.iter().sum::<usize>(), total);
+        assert_eq!(
+            diags.dealbreaker_by_wants_children
+                + diags.dealbreaker_by_stay_local
+                + diags.dealbreaker_by_marriage_timeline
+                + diags.dealbreaker_by_religion,
+            diags.dealbreaker_eliminated
+        );
+        assert!((0.0..=1.0).contains(&diags.mutual_rate));
+
+        let text = diags.to_string();
+        assert!(!text.is_empty());
+        assert!(text.contains("CONVERGENCE"));
+    }
+
+    #[test]
+    fn smoke_diagnostics_none_when_disabled() {
+        let (_, diagnostics) = run_pipeline(false, None);
+        assert!(diagnostics.is_none());
+    }
+}
