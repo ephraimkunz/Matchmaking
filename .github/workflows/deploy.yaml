@@ -17,6 +17,7 @@ jobs:
           echo "=== www ==="
           find www -type f | sort
       - name: Remove gitignore
+        # wasm-pack generates a .gitignore containing '*' which would block the gh-pages commit
         run: rm www/pkg/.gitignore
       - uses: peaceiris/actions-gh-pages@v3
         with:
