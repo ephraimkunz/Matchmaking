@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Pre-push gate mirroring .github/workflows/ci.yaml.
+# Activated per-clone with: git config core.hooksPath .githooks
+set -euo pipefail
+
+echo "==> cargo fmt --check"
+cargo fmt --all -- --check
+
+echo "==> cargo clippy -D warnings"
+cargo clippy --all-targets -- -D warnings
+
+echo "==> cargo build --release"
+cargo build --release
+
+echo "==> wasm-pack build"
+wasm-pack build --target web --out-dir /tmp/wasm-pkg
+
+echo "==> cargo test"
+cargo test
+
+echo "All pre-push checks passed."
