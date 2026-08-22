@@ -1,7 +1,7 @@
 # Matchmaking
 Generate shortlists of compatible dating partners, based on input dating questionnaire.
 
-## Graphical user interace
+## Graphical user interface
 1. Create a new dating questionnaire for your group. Visit https://docs.google.com/forms/d/1vrJOtTK-0Qxo373gTRxZvXdbvJ-wX03EVaqJu_rWulQ/template/preview and click "Use Template" in the upper right.
 2. Change the title to remove the word "[Template]".
 3. Click Publish and share the link with those taking the survey. Do not change question values, ordering, or add new questions without updating the code in this repo to handle the new format and / or ordering. This repo is tightly coupled with the survey as it needs to read the responses and do a bunch of computation on them.
@@ -11,7 +11,7 @@ Generate shortlists of compatible dating partners, based on input dating questio
 <img width="1256" height="830" alt="gui" src="https://github.com/user-attachments/assets/4ae04aaa-3e24-4b1c-b49a-72cd68102a3e" />
 
 
-## Command line interace
+## Command line interface
 1. Create a new dating questionnaire for your group. Visit https://docs.google.com/forms/d/1EbsN5rbwfCNrvdisgqDrTro6-_CVJKSv3AmnOOR17JM/template/preview and click "Use Template" in the upper right.
 2. Change the title to remove the word "[Template]".
 3. Click Publish and share the link with those taking the survey. Do not change question values, ordering, or add new questions without updating the code in this repo to handle the new format and / or ordering. This repo is tightly coupled with the survey as it needs to read the responses and do a bunch of computation on them.
