@@ -972,4 +972,202 @@ mod tests {
             }]
         );
     }
+
+    #[test]
+    fn age_new_valid_boundaries() {
+        assert_eq!(Age::new("26").unwrap(), Age(26));
+        assert_eq!(Age::new("37").unwrap(), Age(37));
+        assert_eq!(Age::new("31").unwrap(), Age(31));
+    }
+
+    #[test]
+    fn age_new_out_of_range_is_err() {
+        assert!(Age::new("25").is_err());
+        assert!(Age::new("38").is_err());
+    }
+
+    #[test]
+    fn age_new_not_a_number_is_err() {
+        assert!(Age::new("abc").is_err());
+        assert!(Age::new("").is_err());
+    }
+
+    #[test]
+    fn religious_commitment_new_valid_boundaries() {
+        assert_eq!(
+            MyReligiousCommitment::new("1").unwrap(),
+            MyReligiousCommitment(1)
+        );
+        assert_eq!(
+            MyReligiousCommitment::new("5").unwrap(),
+            MyReligiousCommitment(5)
+        );
+        assert_eq!(
+            MyReligiousCommitment::new("3").unwrap(),
+            MyReligiousCommitment(3)
+        );
+    }
+
+    #[test]
+    fn religious_commitment_new_out_of_range_is_err() {
+        assert!(MyReligiousCommitment::new("0").is_err());
+        assert!(MyReligiousCommitment::new("6").is_err());
+        assert!(MyReligiousCommitment::new("not a level").is_err());
+    }
+
+    #[test]
+    fn num_children_new_valid_boundaries() {
+        assert_eq!(NumChildren::new("0").unwrap(), NumChildren(0));
+        assert_eq!(NumChildren::new("9").unwrap(), NumChildren(9));
+        assert_eq!(NumChildren::new("2").unwrap(), NumChildren(2));
+    }
+
+    #[test]
+    fn num_children_new_out_of_range_is_err() {
+        assert!(NumChildren::new("10").is_err());
+        assert!(NumChildren::new("-1").is_err());
+        assert!(NumChildren::new("several").is_err());
+    }
+
+    #[test]
+    fn four_choice_response_new_valid_boundaries() {
+        assert_eq!(FourChoiceResponse::new("1").unwrap(), FourChoiceResponse(1));
+        assert_eq!(FourChoiceResponse::new("4").unwrap(), FourChoiceResponse(4));
+        assert_eq!(FourChoiceResponse::new("2").unwrap(), FourChoiceResponse(2));
+    }
+
+    #[test]
+    fn four_choice_response_new_out_of_range_is_err() {
+        assert!(FourChoiceResponse::new("0").is_err());
+        assert!(FourChoiceResponse::new("5").is_err());
+        assert!(FourChoiceResponse::new("strongly disagree").is_err());
+    }
+
+    #[test]
+    fn five_choice_weight_new_valid_labels() {
+        assert_eq!(
+            FiveChoiceWeight::new("I don't care if we agree").unwrap(),
+            FiveChoiceWeight(0)
+        );
+        assert_eq!(
+            FiveChoiceWeight::new("A little").unwrap(),
+            FiveChoiceWeight(1)
+        );
+        assert_eq!(
+            FiveChoiceWeight::new("Somewhat").unwrap(),
+            FiveChoiceWeight(2)
+        );
+        assert_eq!(FiveChoiceWeight::new("Very").unwrap(), FiveChoiceWeight(3));
+        assert_eq!(
+            FiveChoiceWeight::new("We MUST agree on this").unwrap(),
+            FiveChoiceWeight(4)
+        );
+    }
+
+    #[test]
+    fn five_choice_weight_new_invalid_label_is_err() {
+        assert!(FiveChoiceWeight::new("Pretty important").is_err());
+        assert!(FiveChoiceWeight::new("4").is_err());
+    }
+
+    #[test]
+    fn num_children_normalization_boundaries() {
+        assert_eq!(NumChildren(0).normalized(), 0.0);
+        assert_eq!(NumChildren(9).normalized(), 1.0);
+        assert!((NumChildren(4).normalized() - 4.0 / 9.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn four_choice_response_normalization_boundaries() {
+        assert_eq!(FourChoiceResponse(1).normalized(), 0.0);
+        assert_eq!(FourChoiceResponse(4).normalized(), 1.0);
+        assert!((FourChoiceResponse(3).normalized() - 2.0 / 3.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn defaults_are_sane_sentinels() {
+        assert_eq!(Age::default(), Age(26));
+        assert_eq!(MyReligiousCommitment::default(), MyReligiousCommitment(1));
+        assert_eq!(NumChildren::default(), NumChildren(0));
+        assert_eq!(FourChoiceResponse::default(), FourChoiceResponse(1));
+        assert_eq!(FiveChoiceWeight::default(), FiveChoiceWeight(0));
+    }
+
+    /// Re-parse a real questionnaire row with one field's value replaced, to
+    /// verify that invalid values are rejected with an error naming the value.
+    fn parse_row_with_replaced_field(
+        column: &str,
+        value: &str,
+    ) -> Result<Vec<QuestionnaireResponse>> {
+        let mut reader = csv::Reader::from_path(Path::new("test_data/single_real.csv")).unwrap();
+        let headers = reader.headers().unwrap().clone();
+        let idx = headers
+            .iter()
+            .position(|h| h == column)
+            .unwrap_or_else(|| panic!("column {column} not found in test_data/single_real.csv"));
+        let mut out: Vec<u8> = Vec::new();
+        let mut writer = csv::Writer::from_writer(&mut out);
+        writer.write_record(&headers).unwrap();
+        for record in reader.records() {
+            let record = record.unwrap();
+            let fields: Vec<&str> = record
+                .iter()
+                .enumerate()
+                .map(|(i, field)| if i == idx { value } else { field })
+                .collect();
+            writer.write_record(&fields).unwrap();
+        }
+        writer.flush().unwrap();
+        drop(writer);
+
+        let mut reread = csv::Reader::from_reader(out.as_slice());
+        parse_responses(&mut reread)
+    }
+
+    #[test]
+    fn invalid_gender_is_rejected() {
+        let err = parse_row_with_replaced_field("Gender", "Nonbinary").unwrap_err();
+        assert!(format!("{err:#}").contains("Nonbinary"), "{err}");
+    }
+
+    #[test]
+    fn invalid_wants_children_is_rejected() {
+        let err =
+            parse_row_with_replaced_field("I want to have children", "Maybe someday").unwrap_err();
+        assert!(format!("{err:#}").contains("Maybe someday"), "{err}");
+    }
+
+    #[test]
+    fn invalid_marriage_timeline_is_rejected() {
+        let err = parse_row_with_replaced_field("I'd like to be married within", "10+ years")
+            .unwrap_err();
+        assert!(format!("{err:#}").contains("10+ years"), "{err}");
+    }
+
+    #[test]
+    fn invalid_stay_local_is_rejected() {
+        let err =
+            parse_row_with_replaced_field("I intend to stay in Cache Valley long term", "Probably")
+                .unwrap_err();
+        assert!(format!("{err:#}").contains("Probably"), "{err}");
+    }
+
+    #[test]
+    fn invalid_partners_religious_commitment_is_rejected() {
+        let err = parse_row_with_replaced_field(
+            "My partner's religious commitment level should be:",
+            "whoever's comfortable",
+        )
+        .unwrap_err();
+        assert!(
+            format!("{err:#}").contains("whoever's comfortable"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn out_of_range_age_in_row_is_rejected() {
+        let err = parse_row_with_replaced_field("Age", "42").unwrap_err();
+        assert!(format!("{err:#}").contains("42"), "{err}");
+    }
 }
