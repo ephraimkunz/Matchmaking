@@ -196,6 +196,21 @@
       cursor: pointer;
     }
 
+    input.param-input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 6px 8px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--dark);
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      outline: none;
+    }
+
+    input.param-input:focus { border-color: var(--border-focus); box-shadow: 0 0 0 3px var(--primary-light); }
+
     /* ── Toggles ── */
     .toggle-block {
       display: flex;
@@ -471,6 +486,14 @@
             <input type="range" min="1" max="30" value="10" step="1" id="max-relaxed" aria-label="Max appearances relaxed" />
             <div class="param-hint">The appearance cap ceiling when the pool is tight. The algorithm raises the cap one at a time from max_appearances up to this limit whenever a pass stalls. Should always be larger than max_appearances.</div>
           </div>
+
+          <div class="param-block">
+            <div class="param-header">
+              <span class="param-name">rng_seed</span>
+            </div>
+            <input type="text" inputmode="numeric" class="param-input" id="rng-seed" placeholder="random" aria-label="RNG seed" />
+            <div class="param-hint">Optional. Pin the RNG seed for reproducible runs. Leave empty to seed randomly.</div>
+          </div>
         </div>
 
         <div class="card">
@@ -687,6 +710,19 @@
 
         setStatus('running', 'Computing matches…');
 
+        const seedRaw = document.getElementById('rng-seed').value.trim();
+        let rngSeed = null;
+        if (seedRaw !== '') {
+          if (!/^\d+$/.test(seedRaw)) {
+            throw new Error('rng_seed must be a non-negative integer');
+          }
+          const seedBig = BigInt(seedRaw);
+          if (seedBig > BigInt('18446744073709551615')) {
+            throw new Error('rng_seed must be at most 18446744073709551615 (u64 max)');
+          }
+          rngSeed = seedBig;
+        }
+
         const result = wasmModule.generate_matches_from_csv_text(
           csvText,
           document.getElementById('sort-by-score').checked,
@@ -695,6 +731,7 @@
           parseInt(document.getElementById('target-shortlist').value, 10),
           parseInt(document.getElementById('max-appearances').value, 10),
           parseInt(document.getElementById('max-relaxed').value, 10),
+          rngSeed,
         );
 
         const elapsed = stopTimer();

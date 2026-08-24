@@ -1,13 +1,13 @@
 /* tslint:disable */
 /* eslint-disable */
 
-export function generate_matches_from_csv_text(csv_text: string, sort_shortlists_by_score: boolean, print_scores: boolean, collect_diagnostics: boolean, target_shortlist: number, max_appearances: number, max_appearances_relaxed: number): any;
+export function generate_matches_from_csv_text(csv_text: string, sort_shortlists_by_score: boolean, print_scores: boolean, collect_diagnostics: boolean, target_shortlist: number, max_appearances: number, max_appearances_relaxed: number, rng_seed?: bigint | null): any;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
-    readonly generate_matches_from_csv_text: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number];
+    readonly generate_matches_from_csv_text: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: bigint) => [number, number, number];
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_exn_store: (a: number) => void;

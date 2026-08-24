@@ -8,12 +8,13 @@
  * @param {number} target_shortlist
  * @param {number} max_appearances
  * @param {number} max_appearances_relaxed
+ * @param {bigint | null} [rng_seed]
  * @returns {any}
  */
-export function generate_matches_from_csv_text(csv_text, sort_shortlists_by_score, print_scores, collect_diagnostics, target_shortlist, max_appearances, max_appearances_relaxed) {
+export function generate_matches_from_csv_text(csv_text, sort_shortlists_by_score, print_scores, collect_diagnostics, target_shortlist, max_appearances, max_appearances_relaxed, rng_seed) {
     const ptr0 = passStringToWasm0(csv_text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.generate_matches_from_csv_text(ptr0, len0, sort_shortlists_by_score, print_scores, collect_diagnostics, target_shortlist, max_appearances, max_appearances_relaxed);
+    const ret = wasm.generate_matches_from_csv_text(ptr0, len0, sort_shortlists_by_score, print_scores, collect_diagnostics, target_shortlist, max_appearances, max_appearances_relaxed, !isLikeNone(rng_seed), isLikeNone(rng_seed) ? BigInt(0) : rng_seed);
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }
@@ -101,6 +102,10 @@ function handleError(f, args) {
         const idx = addToExternrefTable0(e);
         wasm.__wbindgen_exn_store(idx);
     }
+}
+
+function isLikeNone(x) {
+    return x === undefined || x === null;
 }
 
 function passStringToWasm0(arg, malloc, realloc) {
