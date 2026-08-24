@@ -4,6 +4,8 @@ use anyhow::Result;
 use diagnostics::Diagnostics;
 use matching::Matches;
 
+use rand::prelude::*;
+
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
@@ -22,14 +24,17 @@ pub fn generate_matches_from_csv_text(
     max_appearances: usize,
     max_appearances_relaxed: usize,
 ) -> Result<JsValue, JsValue> {
+    let (mut rng, seed) = rng_and_seed(None);
+
     // Parse CSV from string instead of file path
     let mut reader = csv::Reader::from_reader(csv_text.as_bytes());
-    let responses =
-        parsing::parse_responses(&mut reader).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let responses = parsing::parse_responses(&mut reader, &mut rng)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
     let (matches, diagnostics) = matching::create_matches(
         &responses,
-        None,
+        &mut rng,
+        seed,
         sort_shortlists_by_score,
         print_scores,
         collect_diagnostics,
@@ -67,11 +72,14 @@ pub fn parse_and_generate_matches(
     max_appearances_relaxed: usize,
     debug_print_candidate_list: Option<String>,
 ) -> Result<(Matches, Option<Diagnostics>)> {
+    let (mut rng, seed) = rng_and_seed(rng_seed);
+
     let mut reader = csv::Reader::from_path(input_filename)?;
-    let responses = parsing::parse_responses(&mut reader)?;
+    let responses = parsing::parse_responses(&mut reader, &mut rng)?;
     let result = matching::create_matches(
         &responses,
-        rng_seed,
+        &mut rng,
+        seed,
         sort_shortlists_by_score,
         print_scores,
         collect_diagnostics,
@@ -81,4 +89,15 @@ pub fn parse_and_generate_matches(
         debug_print_candidate_list,
     );
     Ok(result)
+}
+
+pub fn rng_and_seed(rng_seed: Option<u64>) -> (StdRng, u64) {
+    let (rng, seed) = if let Some(seed) = rng_seed {
+        (StdRng::seed_from_u64(seed), seed)
+    } else {
+        let seed = rand::rng().next_u64();
+        (StdRng::seed_from_u64(seed), seed)
+    };
+
+    (rng, seed)
 }

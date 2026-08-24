@@ -69,7 +69,8 @@ pub struct ShortlistMatch {
 #[allow(clippy::too_many_arguments)]
 pub fn create_matches(
     responses: &[QuestionnaireResponse],
-    rng_seed: Option<u64>,
+    rng: &mut StdRng,
+    rng_seed: u64,
     sort_shortlists_by_score: bool,
     print_scores: bool,
     collect_diagnostics: bool,
@@ -78,13 +79,6 @@ pub fn create_matches(
     max_appearances_relaxed: usize,
     debug_print_candidate_list: Option<String>,
 ) -> (Matches, Option<Diagnostics>) {
-    let (mut rng, seed) = if let Some(seed) = rng_seed {
-        (StdRng::seed_from_u64(seed), seed)
-    } else {
-        let seed = rand::rng().next_u64();
-        (StdRng::seed_from_u64(seed), seed)
-    };
-
     // Score all pairs
     let (pairs, pairs_stats) = build_scored_pairs(responses, collect_diagnostics);
 
@@ -96,7 +90,7 @@ pub fn create_matches(
     let (shortlists, shortlist_stats) = assign_shortlists(
         &ids,
         &pairs,
-        &mut rng,
+        rng,
         collect_diagnostics,
         target_shortlist,
         max_appearances,
@@ -123,7 +117,7 @@ pub fn create_matches(
                 matches
             } else {
                 let mut matches = matches;
-                matches.shuffle(&mut rng);
+                matches.shuffle(rng);
                 matches
             };
             MatchCard {
@@ -161,7 +155,7 @@ pub fn create_matches(
         &pairs,
         &result,
         target_shortlist,
-        seed,
+        rng_seed,
     );
 
     (result, diagnostics)
@@ -764,6 +758,7 @@ fn next_available<'a>(
 #[cfg(test)]
 mod tests {
     use crate::parsing::{Dealbreakers, Demographics, MyReligiousCommitment};
+    use crate::rng_and_seed;
 
     use super::*;
 
@@ -1141,7 +1136,8 @@ mod tests {
 
     #[test]
     fn test_empty_create_matches() {
-        let (matches, _) = create_matches(&[], None, true, true, false, 5, 12, 14, None);
+        let (mut rng, seed) = rng_and_seed(None);
+        let (matches, _) = create_matches(&[], &mut rng, seed, true, true, false, 5, 12, 14, None);
         assert_eq!(
             matches,
             Matches {
@@ -1153,9 +1149,11 @@ mod tests {
 
     #[test]
     fn test_one_item_create_matches() {
+        let (mut rng, seed) = rng_and_seed(None);
         let (matches, _) = create_matches(
             &[QuestionnaireResponse::default()],
-            None,
+            &mut rng,
+            seed,
             true,
             true,
             false,
@@ -1196,8 +1194,19 @@ mod tests {
             },
             ..Default::default()
         };
-        let (matches, _) =
-            create_matches(&[first, second], None, true, true, false, 5, 12, 14, None);
+        let (mut rng, seed) = rng_and_seed(None);
+        let (matches, _) = create_matches(
+            &[first, second],
+            &mut rng,
+            seed,
+            true,
+            true,
+            false,
+            5,
+            12,
+            14,
+            None,
+        );
         assert_eq!(
             matches,
             Matches {

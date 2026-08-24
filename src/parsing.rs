@@ -1,5 +1,6 @@
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use itertools::Itertools;
+use rand::prelude::*;
 use rustc_hash::FxHashSet;
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -260,6 +261,7 @@ pub enum PartnersReligionResponse {
 
 pub fn parse_responses<R: std::io::Read>(
     reader: &mut csv::Reader<R>,
+    rng: &mut StdRng,
 ) -> Result<Vec<QuestionnaireResponse>> {
     let headers = reader.headers().context("Invalid csv header")?.clone();
     let mut responses = vec![];
@@ -296,7 +298,7 @@ pub fn parse_responses<R: std::io::Read>(
         let dealbreakers = parse_dealbreakers(&mut header_and_field)
             .with_context(|| format!("Row {}: failed parsing dealbreakers", row_num + 2))?;
 
-        let freeresponse = parse_freeresponse(&mut header_and_field);
+        let freeresponse = parse_freeresponse(&mut header_and_field, rng);
 
         let last = header_and_field.next();
         ensure!(
@@ -665,8 +667,9 @@ fn parse_interests<'i>(
 
 fn parse_freeresponse<'i>(
     header_and_field: &mut impl Iterator<Item = (&'i str, &'i str)>,
+    rng: &mut StdRng,
 ) -> FreeResponse {
-    let responses = header_and_field
+    let mut responses: Vec<_> = header_and_field
         .by_ref()
         .take(8)
         .filter_map(|(q_header, q_value)| {
@@ -678,12 +681,20 @@ fn parse_freeresponse<'i>(
         })
         .collect();
 
-    FreeResponse { responses }
+    // They should have only filled out 3 of the 8, if they followed the instructions. Many people didn't.
+    // Select up to 3 randomly here, so that everything downstream will see the same 3.
+    responses.shuffle(rng);
+
+    let limited: Vec<_> = responses.iter().take(3).cloned().collect();
+
+    FreeResponse { responses: limited }
 }
 
 #[cfg(test)]
 mod tests {
     use std::path::Path;
+
+    use crate::rng_and_seed;
 
     use super::*;
 
@@ -693,7 +704,8 @@ mod tests {
            4/11/2026 22:43:04,ephraimkunz@example.com,Ephraim kunz,Male,37,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,4,1,1,0,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,1,1,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,No,2 - 5 years,No,1,the same as mine,rgerg,hjkhjkhj,ewfwef,,dfhfdh,qwewefwef,dfgfdgdfg,jkkjy"#;
 
         let mut reader = csv::Reader::from_reader(data.as_bytes());
-        let result = parse_responses(&mut reader).unwrap();
+        let (mut rng, _) = rng_and_seed(None);
+        let result = parse_responses(&mut reader, &mut rng).unwrap();
         assert!(result.len() == 1);
     }
 
@@ -704,7 +716,8 @@ mod tests {
             4/11/2026 22:43:04,ephraimkunz@me.com,Ephraim kunz,Male,37,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,4,1,1,0,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,1,1,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,No,2 - 5 years,No,1,the same as mine,rgerg,hjkhjkhj,ewfwef,,dfhfdh,qwewefwef,dfgfdgdfg,jkkjy"#;
 
         let mut reader = csv::Reader::from_reader(data.as_bytes());
-        let result = parse_responses(&mut reader);
+        let (mut rng, _) = rng_and_seed(None);
+        let result = parse_responses(&mut reader, &mut rng);
         assert!(result.is_err());
     }
 
@@ -714,7 +727,9 @@ mod tests {
            hi,4/11/2026 22:43:04,ephraimkunz@me.com,Ephraim kunz,Male,37,No,2 - 5 years,No,1,the same as mine,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,1,1,1,1,1,1,1,4,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,rgerg,hjkhjkhj,ewfwef,,dfhfdh,qwewefwef,dfgfdgdfg,jkkjy"#;
 
         let mut reader = csv::Reader::from_reader(data.as_bytes());
-        let result = parse_responses(&mut reader);
+
+        let (mut rng, _) = rng_and_seed(None);
+        let result = parse_responses(&mut reader, &mut rng);
         assert!(result.is_err());
     }
 
@@ -724,7 +739,8 @@ mod tests {
            ephraimkunz@me.com,Ephraim kunz,Male,37,No,2 - 5 years,No,1,the same as mine,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,1,1,1,1,1,1,1,4,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,rgerg,hjkhjkhj,ewfwef,,dfhfdh,qwewefwef,dfgfdgdfg,jkkjy"#;
 
         let mut reader = csv::Reader::from_reader(data.as_bytes());
-        let result = parse_responses(&mut reader);
+        let (mut rng, _) = rng_and_seed(None);
+        let result = parse_responses(&mut reader, &mut rng);
         assert!(result.is_err());
     }
 
@@ -740,7 +756,8 @@ mod tests {
     #[test]
     fn parse_single_result() {
         let mut reader = csv::Reader::from_path(Path::new("test_data/single_real.csv")).unwrap();
-        let result = parse_responses(&mut reader);
+        let (mut rng, _) = rng_and_seed(Some(5));
+        let result = parse_responses(&mut reader, &mut rng);
         assert_eq!(
             result.unwrap(),
             vec![QuestionnaireResponse {
@@ -940,28 +957,12 @@ mod tests {
                 freeresponse: FreeResponse {
                     responses: Vec::from([
                         (
-                            "Unpopular opinion I stand by:".to_string(),
-                            "rgerg".to_string()
-                        ),
-                        (
                             "Something I've changed my mind about recently:".to_string(),
                             "hjkhjkhj".to_string()
                         ),
                         (
                             "I could give a 10-minute talk on:".to_string(),
                             "ewfwef".to_string()
-                        ),
-                        (
-                            "My weekend usually looks like:".to_string(),
-                            "dfhfdh".to_string()
-                        ),
-                        (
-                            "Niche interest most people don't know I have:".to_string(),
-                            "qwewefwef".to_string()
-                        ),
-                        (
-                            "Something I'm better at than I let on:".to_string(),
-                            "dfgfdgdfg".to_string()
                         ),
                         (
                             "The thing I find most attractive in a person:".to_string(),
@@ -1121,7 +1122,8 @@ mod tests {
         drop(writer);
 
         let mut reread = csv::Reader::from_reader(out.as_slice());
-        parse_responses(&mut reread)
+        let (mut rng, _) = rng_and_seed(None);
+        parse_responses(&mut reread, &mut rng)
     }
 
     #[test]
@@ -1169,5 +1171,17 @@ mod tests {
     fn out_of_range_age_in_row_is_rejected() {
         let err = parse_row_with_replaced_field("Age", "42").unwrap_err();
         assert!(format!("{err:#}").contains("42"), "{err}");
+    }
+
+    #[test]
+    fn less_than_3_free_response() {
+        let data = r#"Timestamp,Username,First and last name,Gender,Age,I tend to plan things carefully,I have an artistic or creative side,I am energetic and outgoing,I am highly goal-oriented and driven,I prefer structured daily routines,Idle days with no plans feel,I usually find it harder to,I have a dry sense of humor,I enjoy intellectual debate and sparring,My profession is a defining part of who I am,Diet and nutrition are important to me,Staying active and exercising matters,Fashion and personal style matter to me,Sports are an important part of my identity,I'm comfortable being spontaneous over responsible,"I enjoy philosophy, science, or psychology discussions","I follow pop culture, TV, and movies","I enjoy concerts, festivals, and live events","I enjoy thrill-seeking (skydiving, roller coasters)",I could spend hours lost in a book or creative project,I enjoy dark humor and sarcasm,I love trying exotic or unusual foods,I enjoy discussing current events,I prefer a small close-knit friend group,I enjoy social media and actively engage with it,I love planning and hosting gatherings,I value deep conversations over casual small talk,I enjoy playful teasing with friends,I'm comfortable with friends who hold different beliefs,"I enjoy group activities (sports, games, trivia)",I prefer cozy nights in over going out,I'd prefer a partner who plans vs. goes with the flow,An artistic or creative side in a partner matters,I'd prefer a partner who is,Ambition in a partner matters to me,A dry sense of humor in a partner matters,An intellectually curious partner matters to me,A health-conscious partner matters to me,An active or fit partner matters to me,Splitting the bill on a first date feels right,I'm fine with my partner having celebrity crushes,Expensive dates are more fun,I count every penny I spend,I like to indulge in non-essential purchases,Financial stability matters more than chasing passion,It matters that I earn more than my peers,I want an extravagant wedding,My kids should attend private school,I enjoy treating myself even when impractical,I'd like to have ___ child (children),I say what's bothering me even if it makes my partner uncomfortable,"From the question above, how important is it that your partner feels the same way about this as you do?",I can't sleep if my partner is upset with me,"From the question above, how important is it that your partner feels the same way about this as you do?",My partner can be just friends with an ex,"From the question above, how important is it that your partner feels the same way about this as you do?",I'd want my partner to share their location with me,"From the question above, how important is it that your partner feels the same way about this as you do?",My partner should enjoy spending time with my family without me,"From the question above, how important is it that your partner feels the same way about this as you do?",My parents' approval of my partner matters to me,"From the question above, how important is it that your partner feels the same way about this as you do?",I run major decisions by my parents,"From the question above, how important is it that your partner feels the same way about this as you do?",I'd rather ghost than directly reject someone,"From the question above, how important is it that your partner feels the same way about this as you do?",I avoid burning bridges at all costs,I check in on friends regularly,I need friends who respond quickly to messages,Protecting feelings matters more than blunt honesty,"From the question above, how important is it that your partner feels the same way about this as you do?",Social activism is important to me,"From the question above, how important is it that your partner feels the same way about this as you do?",There is a place for revenge when someone wrongs you,"From the question above, how important is it that your partner feels the same way about this as you do?",Some things are simply black and white,"From the question above, how important is it that your partner feels the same way about this as you do?","The phrase ""I love you"" is a promise","From the question above, how important is it that your partner feels the same way about this as you do?",I go to great lengths to minimize harm to the planet,"From the question above, how important is it that your partner feels the same way about this as you do?",I would keep a gun in the house,"From the question above, how important is it that your partner feels the same way about this as you do?",I would end a friendship over political differences,"From the question above, how important is it that your partner feels the same way about this as you do?",No one can be truly self-made,"From the question above, how important is it that your partner feels the same way about this as you do?",Everyone deserves my empathy,"From the question above, how important is it that your partner feels the same way about this as you do?",I would rather fail than cheat,"From the question above, how important is it that your partner feels the same way about this as you do?",I am the most important person in my own life,"From the question above, how important is it that your partner feels the same way about this as you do?",I prefer politically incorrect humor,"From the question above, how important is it that your partner feels the same way about this as you do?",Buying local over corporate matters to me,"From the question above, how important is it that your partner feels the same way about this as you do?",I want to have children,I'd like to be married within,I intend to stay in Cache Valley long term,My religious commitment level,My partner's religious commitment level should be:,Unpopular opinion I stand by:,Something I've changed my mind about recently:,I could give a 10-minute talk on:,Ideal low-effort hangout:,My weekend usually looks like:,Niche interest most people don't know I have:,Something I'm better at than I let on:,The thing I find most attractive in a person:
+           4/11/2026 22:43:04,ephraimkunz@example.com,Ephraim kunz,Male,37,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,4,1,1,0,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,1,1,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,1,I don't care if we agree,No,2 - 5 years,No,1,the same as mine,,hjkhjkhj,,,,qwewefwef,,"#;
+
+        let mut reader = csv::Reader::from_reader(data.as_bytes());
+        let (mut rng, _) = rng_and_seed(None);
+        let result = parse_responses(&mut reader, &mut rng).unwrap();
+        assert!(result.len() == 1);
+        assert!(result[0].freeresponse.responses.len() == 2);
     }
 }
