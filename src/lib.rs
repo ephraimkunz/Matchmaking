@@ -15,6 +15,7 @@ mod parsing;
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
+#[allow(clippy::too_many_arguments)]
 pub fn generate_matches_from_csv_text(
     csv_text: &str,
     sort_shortlists_by_score: bool,
@@ -23,8 +24,9 @@ pub fn generate_matches_from_csv_text(
     target_shortlist: usize,
     max_appearances: usize,
     max_appearances_relaxed: usize,
+    rng_seed: Option<u64>,
 ) -> Result<JsValue, JsValue> {
-    let (mut rng, seed) = rng_and_seed(None);
+    let (mut rng, seed) = rng_and_seed(rng_seed);
 
     // Parse CSV from string instead of file path
     let mut reader = csv::Reader::from_reader(csv_text.as_bytes());
