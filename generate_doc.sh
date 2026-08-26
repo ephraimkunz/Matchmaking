@@ -4,3 +4,4 @@ cargo build --release --quiet
 python3 parse.py out.txt people.json
 node generate.js
 open matches.docx
+rm out.txt people.json

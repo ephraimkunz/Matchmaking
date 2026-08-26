@@ -7,9 +7,9 @@
 #![allow(clippy::cast_precision_loss)]
 
 use anyhow::Result;
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use matchmaking::parse_and_generate_matches;
-use std::{io::Write, path::PathBuf};
+use std::{io::Write, path::PathBuf, process::Command};
 
 /// Generate shortlists of compatible dating partners, based on input dating questionnaire.
 #[derive(Parser, Debug)]
@@ -53,6 +53,18 @@ struct Args {
     /// If provided, the person with this id (email)'s shortlist is printed.
     #[arg(long, value_name = "PERSON_ID")]
     debug_print_candidate_list: Option<String>,
+
+    /// What type of output to generate.
+    #[arg(short, long, value_enum, default_value_t = OutputFormat::PlainText)]
+    output_format: OutputFormat,
+}
+
+#[derive(Debug, Clone, ValueEnum)]
+enum OutputFormat {
+    /// Plaintext for checking results
+    PlainText,
+    /// Word document
+    DocX,
 }
 
 fn main() -> Result<()> {
@@ -69,8 +81,17 @@ fn main() -> Result<()> {
         args.debug_print_candidate_list,
     )?;
 
-    let out = matches.to_string();
-    std::io::stdout().lock().write_all(out.as_bytes())?;
+    match args.output_format {
+        OutputFormat::PlainText => {
+            let out = matches.to_string();
+            std::io::stdout().lock().write_all(out.as_bytes())?;
+        }
+        OutputFormat::DocX => {
+            Command::new("./generate_doc.sh")
+                .current_dir(std::env::current_dir()?)
+                .output()?;
+        }
+    }
 
     if let Some(diag) = diagnostics {
         write!(std::io::stderr().lock(), "{diag}")?;
