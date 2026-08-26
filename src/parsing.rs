@@ -2,6 +2,7 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use itertools::Itertools;
 use rand::prelude::*;
 use rustc_hash::FxHashSet;
+use serde::Serialize;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct QuestionnaireResponse {
@@ -86,12 +87,12 @@ pub struct Interests {
     pub responses: [FourChoiceResponse; 8],
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
 pub struct FreeResponse {
     pub responses: Vec<(String, String)>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Age(pub u8);
 
 impl Age {

@@ -65,6 +65,8 @@ enum OutputFormat {
     PlainText,
     /// Word document
     DocX,
+    /// JSON document
+    Json,
 }
 
 fn main() -> Result<()> {
@@ -87,10 +89,14 @@ fn main() -> Result<()> {
             std::io::stdout().lock().write_all(out.as_bytes())?;
         }
         OutputFormat::DocX => {
-            Command::new("./generate_doc.sh")
-                .current_dir(std::env::current_dir()?)
+            Command::new("node")
+                .arg("generate.js")
+                .arg(serde_json::to_string(&matches)?)
                 .output()?;
+
+            Command::new("open").arg("matches.docx").output()?;
         }
+        OutputFormat::Json => print!("{}", serde_json::to_string_pretty(&matches)?),
     }
 
     if let Some(diag) = diagnostics {

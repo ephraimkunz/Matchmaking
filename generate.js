@@ -7,7 +7,7 @@ const {
 const FONT = "Source Sans Pro";
 const SEMIBOLD_FONT = "Source Sans Pro Semibold";
 
-const people = JSON.parse(fs.readFileSync(process.argv[2] || "people.json", "utf-8"));
+const matches = JSON.parse(process.argv[2]);
 
 const PAGE_WIDTH = 12240;   // US Letter, twips
 const PAGE_HEIGHT = 15840;
@@ -34,17 +34,17 @@ function buildSlip(person) {
     })
   );
 
-  person.matches.forEach((match, i) => {
+  person.shortlist.forEach((match, i) => {
     children.push(
       new Paragraph({
         spacing: { before: i === 0 ? 0 : 110, after: 20, line: 240 },
         children: [
-          new TextRun({ text: match.name + " – 34", bold: true, size: 21, font: FONT }),
+          new TextRun({ text: match.name + " – " + match.age, bold: true, size: 21, font: FONT }),
           new TextRun({ text: `  (${match.email})`, size: 18, color: "555555", font: FONT }),
         ],
       })
     );
-    if (match.attrs.length === 0) {
+    if (match.freeresponse.responses.length === 0) {
       children.push(
         new Paragraph({
           indent: { left: 220 },
@@ -53,14 +53,14 @@ function buildSlip(person) {
         })
       );
     }
-    match.attrs.forEach((attr) => {
+    match.freeresponse.responses.forEach((attr) => {
       children.push(
         new Paragraph({
           indent: { left: 220 },
           spacing: { after: 40, line: 240 },
           children: [
-            new TextRun({ text: `${attr.label}: `, size: 18, font: SEMIBOLD_FONT }),
-            new TextRun({ text: attr.value, size: 18, font: FONT }),
+            new TextRun({ text: `${attr[0]}: `, size: 18, font: SEMIBOLD_FONT }),
+            new TextRun({ text: attr[1], size: 18, font: FONT }),
           ],
         })
       );
@@ -103,13 +103,13 @@ function wrapCount(text) {
 }
 function estimateLines(person) {
   let lines = 2; // name header + "Your matches" rule
-  for (const match of person.matches) {
+  for (const match of person.shortlist) {
     lines += wrapCount(`${match.name}  (${match.email})`);
-    if (match.attrs.length === 0) {
+    if (match.freeresponse.responses.length === 0) {
       lines += 1;
     } else {
-      for (const attr of match.attrs) {
-        lines += wrapCount(`${attr.label}: ${attr.value}`);
+      for (const attr of match.freeresponse.responses) {
+        lines += wrapCount(`${attr[0]}: ${attr[1]}`);
       }
     }
   }
@@ -122,10 +122,10 @@ const PAGE_CAPACITY = 90;
 
 const body = [];
 let i = 0;
-while (i < people.length) {
-  const first = people[i];
+while (i < matches.cards.length) {
+  const first = matches.cards[i];
   const firstLines = estimateLines(first);
-  const second = people[i + 1];
+  const second = matches.cards[i + 1];
   const secondLines = second ? estimateLines(second) : 0;
 
   const fitsTwo = second && firstLines + secondLines <= PAGE_CAPACITY;
@@ -139,7 +139,7 @@ while (i < people.length) {
     i += 1;
   }
 
-  if (i < people.length) {
+  if (i < matches.cards.length) {
     body.push(new Paragraph({ children: [new PageBreak()] }));
   }
 }

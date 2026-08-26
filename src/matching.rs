@@ -3,6 +3,7 @@ use std::fmt::{Display, Formatter};
 use itertools::Itertools;
 use rand::prelude::*;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
+use serde::Serialize;
 
 use crate::parsing::{
     Age, FreeResponse, Gender, MarriageTimelineResponse, PartnersReligionResponse,
@@ -15,7 +16,7 @@ use crate::diagnostics::{
 
 use anyhow::Result;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Matches {
     pub cards: Vec<MatchCard>,
     print_scores: bool,
@@ -51,16 +52,17 @@ impl Display for Matches {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct MatchCard {
     name: String,
     pub email: String,
     pub shortlist: Vec<ShortlistMatch>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ShortlistMatch {
     name: String,
+    age: Age,
     pub email: String,
     freeresponse: FreeResponse,
     pub score: f32,
@@ -131,6 +133,7 @@ pub fn create_matches(
                             .expect("Can't find response for id");
                         ShortlistMatch {
                             name: match_response.demographics.name.clone(),
+                            age: match_response.demographics.age.clone(),
                             email: match_response.demographics.email.clone(),
                             freeresponse: match_response.freeresponse.clone(),
                             score: matched_score,
@@ -1182,6 +1185,7 @@ mod tests {
         let first = QuestionnaireResponse {
             demographics: Demographics {
                 name: "Candidate A".to_string(),
+                age: Age(34),
                 email: "first".to_string(),
                 ..Default::default()
             },
@@ -1190,9 +1194,9 @@ mod tests {
         let second = QuestionnaireResponse {
             demographics: Demographics {
                 name: "Candidate B".to_string(),
+                age: Age(26),
                 email: "second".to_string(),
                 gender: Gender::Female,
-                ..Default::default()
             },
             ..Default::default()
         };
@@ -1218,9 +1222,10 @@ mod tests {
                         email: "first".to_string(),
                         shortlist: vec![ShortlistMatch {
                             name: "Candidate B".to_string(),
+                            age: Age(26),
                             email: "second".to_string(),
                             freeresponse: FreeResponse { responses: vec![] },
-                            score: 1.0
+                            score: 0.98976606
                         }]
                     },
                     MatchCard {
@@ -1228,9 +1233,10 @@ mod tests {
                         email: "second".to_string(),
                         shortlist: vec![ShortlistMatch {
                             name: "Candidate A".to_string(),
+                            age: Age(34),
                             email: "first".to_string(),
                             freeresponse: FreeResponse { responses: vec![] },
-                            score: 1.0
+                            score: 0.98976606
                         }]
                     }
                 ],
