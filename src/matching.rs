@@ -141,7 +141,7 @@ pub fn create_matches(
         })
         .collect_vec();
 
-    matches.sort_unstable_by(|a, b| a.email.cmp(&b.email));
+    matches.sort_unstable_by(|a, b| a.name.cmp(&b.name));
 
     let result = Matches {
         cards: matches,
@@ -1181,6 +1181,7 @@ mod tests {
     fn test_two_items_create_matches() {
         let first = QuestionnaireResponse {
             demographics: Demographics {
+                name: "Candidate A".to_string(),
                 email: "first".to_string(),
                 ..Default::default()
             },
@@ -1188,6 +1189,7 @@ mod tests {
         };
         let second = QuestionnaireResponse {
             demographics: Demographics {
+                name: "Candidate B".to_string(),
                 email: "second".to_string(),
                 gender: Gender::Female,
                 ..Default::default()
@@ -1196,7 +1198,7 @@ mod tests {
         };
         let (mut rng, seed) = rng_and_seed(None);
         let (matches, _) = create_matches(
-            &[first, second],
+            &[second, first],
             &mut rng,
             seed,
             true,
@@ -1212,20 +1214,20 @@ mod tests {
             Matches {
                 cards: vec![
                     MatchCard {
-                        name: "".to_string(),
+                        name: "Candidate A".to_string(),
                         email: "first".to_string(),
                         shortlist: vec![ShortlistMatch {
-                            name: "".to_string(),
+                            name: "Candidate B".to_string(),
                             email: "second".to_string(),
                             freeresponse: FreeResponse { responses: vec![] },
                             score: 1.0
                         }]
                     },
                     MatchCard {
-                        name: "".to_string(),
+                        name: "Candidate B".to_string(),
                         email: "second".to_string(),
                         shortlist: vec![ShortlistMatch {
-                            name: "".to_string(),
+                            name: "Candidate A".to_string(),
                             email: "first".to_string(),
                             freeresponse: FreeResponse { responses: vec![] },
                             score: 1.0
