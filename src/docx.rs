@@ -40,7 +40,10 @@ fn generate_docx_data(matches: &Matches) -> Docx {
         .default_fonts(run_font.clone())
         .default_size(18);
 
-    Docx::new().styles(styles).add_section(section)
+    Docx::new()
+        .page_size(PAGE_WIDTH, PAGE_HEIGHT)
+        .styles(styles)
+        .add_section(section)
 }
 
 fn generate_cards(
