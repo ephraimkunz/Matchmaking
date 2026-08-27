@@ -1,11 +1,3 @@
-#![warn(clippy::pedantic)]
-#![warn(clippy::correctness)]
-#![warn(clippy::suspicious)]
-#![warn(clippy::complexity)]
-#![warn(clippy::perf)]
-#![warn(clippy::style)]
-#![allow(clippy::cast_precision_loss)]
-
 use anyhow::Result;
 use clap::{Parser, ValueEnum};
 use matchmaking::generate_docx;
@@ -91,8 +83,7 @@ fn main() -> Result<()> {
         }
         OutputFormat::DocX => {
             generate_docx(&matches)?;
-
-            Command::new("open").arg("matches.docx").output()?;
+            open_generated_file(std::path::Path::new("matches.docx"));
         }
         OutputFormat::Json => print!("{}", serde_json::to_string_pretty(&matches)?),
     }
@@ -101,6 +92,28 @@ fn main() -> Result<()> {
         write!(std::io::stderr().lock(), "{diag}")?;
     }
     Ok(())
+}
+
+/// Best-effort: open `path` with the platform's default handler. The file has already
+/// been written successfully by the time this is called, so a missing/failing launcher
+/// (e.g. no `xdg-open` in a minimal container) is reported but never fails the run.
+fn open_generated_file(path: &std::path::Path) {
+    #[cfg(target_os = "macos")]
+    let result = Command::new("open").arg(path).status();
+    #[cfg(target_os = "windows")]
+    let result = Command::new("cmd")
+        .args(["/C", "start", ""])
+        .arg(path)
+        .status();
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let result = Command::new("xdg-open").arg(path).status();
+
+    if let Err(e) = result {
+        eprintln!(
+            "Generated {} but couldn't open it automatically: {e}",
+            path.display()
+        );
+    }
 }
 
 #[cfg(test)]

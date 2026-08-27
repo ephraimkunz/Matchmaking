@@ -1,3 +1,11 @@
+#![warn(clippy::pedantic)]
+#![warn(clippy::correctness)]
+#![warn(clippy::suspicious)]
+#![warn(clippy::complexity)]
+#![warn(clippy::perf)]
+#![warn(clippy::style)]
+#![allow(clippy::cast_precision_loss)]
+
 use std::path::PathBuf;
 
 use anyhow::Result;
@@ -65,6 +73,10 @@ struct MatchOutput {
     diagnostics_text: Option<String>,
 }
 
+/// # Errors
+///
+/// Returns an error if `input_filename` can't be opened, or if its contents don't parse
+/// as a valid questionnaire response CSV (see [`parsing::parse_responses`]).
 #[allow(clippy::too_many_arguments)]
 pub fn parse_and_generate_matches(
     input_filename: PathBuf,
@@ -96,6 +108,7 @@ pub fn parse_and_generate_matches(
     Ok(result)
 }
 
+#[must_use]
 pub fn rng_and_seed(rng_seed: Option<u64>) -> (StdRng, u64) {
     let (rng, seed) = if let Some(seed) = rng_seed {
         (StdRng::seed_from_u64(seed), seed)

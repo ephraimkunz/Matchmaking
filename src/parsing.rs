@@ -692,6 +692,7 @@ fn parse_freeresponse<'i>(
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp)] // exact comparisons against deterministic, hand-computed values
 mod tests {
     use std::path::Path;
 
@@ -755,6 +756,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn parse_single_result() {
         let mut reader = csv::Reader::from_path(Path::new("test_data/single_real.csv")).unwrap();
         let (mut rng, _) = rng_and_seed(Some(5));

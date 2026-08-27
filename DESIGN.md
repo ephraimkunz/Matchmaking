@@ -293,7 +293,7 @@ For one direction (A → B), i.e., how well does B satisfy A's preferences:
 
 - For every importance-weighted question (Core Values, first 8 of Relationship Dynamics): compute `similarity = 1 − |a − b|`, multiply by A's capped importance weight and the section weight, accumulate into a running total and weight sum.
 - For every fixed-weight question (last 3 of Relationship Dynamics, Lifestyle & Money, Self-description direct, Social Style, Interests): compute `similarity = 1 − |a − b|`, multiply by the section weight, accumulate.
-- For each of the 8 cross-match pairs (Partner Preferences → partner's matching Self-description trait): compute `similarity = 1 − |a_F − b_E|`, multiply by `PARTNER_PREFERENCES_SECTION_WEIGHT`.
+- For each of the 8 cross-match pairs (Partner Preferences → partner's matching Self-description trait): 2 are a genuine preference axis ("plans carefully" vs. "goes with the flow"; "homebody" vs. "very social"), scored as `similarity = 1 − |a_F − b_E|` (`CROSSMATCH_IS_BIPOLAR`). The other 6 are an importance scale ("...in a partner matters", 1 = not at all), scored as `similarity = 1 − max(0, a_F − b_E)`: wanting *less* of a trait than a partner has is never a mismatch, only wanting *more* than they have costs anything. Both cases are multiplied by `PARTNER_PREFERENCES_SECTION_WEIGHT`.
 - For age: compute proximity over the `Age::MIN_AGE`-`Age::MAX_AGE` span, weighted at `AGE_QUESTION_WEIGHT`.
 - Return `total / weight_sum`.
 
@@ -308,19 +308,35 @@ mutual_score(A, B) = 0.8 × min(score(A→B), score(B→A))
 
 The min term punishes one-sided matches where one person would be miserable. The midpoint term breaks ties. With pure averaging, a perfect/poor pair scores the same as two moderate pairs. The second is the better real-world match.
 
-### Step 4 - Build candidate ranking
+This is the **display score**: shown on match cards (`--print-scores`) and used for the QUALITY diagnostics. It is not, on its own, what decides who ends up on whose shortlist — see Step 4.
 
-For every participant, sort surviving opposite-sex candidates by `mutual_score` descending.
+### Step 4 - Calibration
 
-### Step 5 - Round-robin shortlist assignment
+Some people score well (or poorly) with almost everyone, independent of genuine pair fit — a generous or harsh rating style, not compatibility. Left uncorrected, this turns candidate ranking into something closer to a popularity contest: on real data collected for this project, as much as 59% of pair-score variance has come from this effect rather than pair-specific compatibility (the `person_effect_share` diagnostic).
 
-Each round, shuffle the order of incomplete participants, then give each person their next-best available candidate. Skip anyone already on their shortlist, and skip anyone who has been picked `--max-appearances` times. Iterate until every shortlist reaches `--target-shortlist` length, or a full pass makes no progress.
+To correct for it, a second, calibrated **rank score** is computed alongside the display score, and used only to order each person's candidates:
+
+```
+mean_outgoing(A) = mean of score(A → X) over every X A is compatible with
+cal(A → B)        = score(A → B) − mean_outgoing(A)
+rank_score(A, B)  = 0.8 × min(cal(A→B), cal(B→A)) + 0.2 × midpoint(cal(A→B), cal(B→A))
+```
+
+Subtracting each person's own average removes their rating-style bias without touching the display score participants actually see. Someone with fewer than 2 candidates has no meaningful average to subtract, so calibration is a no-op for them.
+
+### Step 5 - Build candidate ranking
+
+For every participant, sort surviving opposite-sex candidates by rank score descending.
+
+### Step 6 - Round-robin shortlist assignment
+
+Each round, shuffle the order of incomplete participants, then give each person their next-best available candidate (by rank score). Skip anyone already on their shortlist, and skip anyone who has been picked `--max-appearances` times. Iterate until every shortlist reaches `--target-shortlist` length, or a full pass makes no progress.
 
 If the algorithm stalls at the current cap, the cap is raised by one and the process repeats to reach `--target-shortlist`. This continues until either every shortlist is full, or the cap has reached `--max-appearances-relaxed` and no further progress is possible. All three values are tunable CLI flags with sensible defaults for the 100-200 person use case.
 
-The per-round shuffle prevents any single person from systematically getting first pick. The appearance cap prevents a few popular profiles from absorbing every shortlist.
+The per-round shuffle prevents any single person from systematically getting first pick. The appearance cap prevents a few popular profiles from absorbing every shortlist. The `algorithm_limited_short` diagnostic flags a person whose shortlist came up short despite having enough viable candidates — the appearance cap, not the pool, is the reason. On the 100-person test fixture with the CLI's default flags (`-a 8 -r 10`) this reads 1: one person's last remaining candidate had already been picked by 10 other people (the `max_appearances_relaxed` ceiling) by the time the round-robin reached her. That is an honest capacity trade-off, not a bug — raising `--max-appearances-relaxed` (at the cost of a more popularity-skewed run) would close it.
 
-### Step 6 - Render match cards
+### Step 7 - Render match cards
 
 Each card lists the matched person's name, email, and the free-response hooks they chose. By default shortlists are in randomized order so the participant doesn't anchor on the top score. `--sort-shortlists-by-score` and `--print-scores` expose the underlying ranking when needed.
 
@@ -344,6 +360,17 @@ Each card lists the matched person's name, email, and the free-response hooks th
 
 **Importance-weighted questions:** 22 (Core Values + first 8 of Relationship Dynamics). Per-question cap `MAX_NORMALIZED`; per-person average cap `PERSON_BOOST_CAP`.
 
+**Cross-match items:** 8 total. 2 bipolar (`CROSSMATCH_IS_BIPOLAR`), scored `1 − |want − have|`. 6 importance-scale, scored `1 − max(0, want − have)`.
+
+## Quality diagnostics
+
+Beyond the POOL/CONVERGENCE/QUALITY metrics documented in the README's example output, four things are worth tracking as design-level concerns, not just run-level output:
+
+- **Headroom** (`headroom_ratio` and friends): served score as a fraction of what each person's own best-possible candidates would have given them, ignoring the appearance cap entirely. This is the number that answers "would a smarter assignment algorithm help?" — on real data collected for this project it has run at ~99%, meaning the round-robin assignment already captures nearly all the quality the pool allows. Re-running the randomized assignment multiple times and keeping the best (hill climbing) buys at most this remaining sliver; it is not implemented, because there's essentially nothing there to buy back.
+- **Feasibility** (`max_possible_entries`, `pool_limited_short`, `algorithm_limited_short`): separates a short shortlist caused by a thin candidate pool (not fixable by tuning) from one caused by the appearance cap ceiling leaving a saturated candidate unreachable. The latter is a genuine capacity trade-off with a generous cap, not automatically a bug — cross-check `cap_relaxed` and `appearance_max` before concluding it's one.
+- **Separability** (`pair_score_stddev`, `top_gap_mean`, `top_gap_in_sds`): how much a person's best candidate actually stands out from their `target_shortlist`-th best, in units of the overall score spread. When this is small, the ranking near the top of a shortlist is mostly noise, and the default randomized shortlist order (rather than `--sort-shortlists-by-score`) is the more honest presentation.
+- **Person effects and demand concentration** (`person_effect_share`, `demand_max`, `demand_zero`, `demand_gini`): `person_effect_share` is a property of the raw scoring — how much of the spread is "rated well by everyone" rather than genuine fit — and is what calibration (Step 4) exists to blunt. `demand_gini` and `demand_zero` show the resulting concentration under the calibrated ranking: how unevenly a few people end up wanted by everyone else's top candidates.
+
 ## Key design decisions
 
 | Decision | Rationale |
@@ -359,9 +386,12 @@ Each card lists the matched person's name, email, and the free-response hooks th
 | Round-robin with per-round shuffle | Eliminates first-pick order bias. |
 | `--max-appearances` cap, ramped +1 per stall to `--max-appearances-relaxed` | Prevents popular profiles from dominating every shortlist; quality degrades as little as necessary before expanding capacity. |
 | No Gale-Shapley | Stable matching requires full mutual rankings; impractical at this scale. Shortlists are sufficient for the speed-dating event. |
+| Cross-match split: bipolar vs. shortfall-only | 6 of the 8 cross-matched Partner Preferences items are importance scales ("...matters"), not preference axes. Scoring them as bipolar treated "doesn't matter to me" as an aversion to be penalized whenever a partner had the trait. |
+| Per-person mean-centering (rank score, kept separate from the display score) | Corrects for rating style — a generous or harsh rater no longer gets an artificial edge or penalty purely from that, relative to someone with a typical rating style. Without it, candidate ranking is closer to a popularity contest than a compatibility measure; see `person_effect_share`. |
+| No restart/hill-climbing over the round-robin's randomness | Measured `headroom_ratio` on real data sits around 99%: the assignment already captures nearly all the score the pool allows, so re-running with different seeds and keeping the best has almost nothing to gain. |
 
 ## Open questions / TODO
 
 - Clearer breadwinning / gender-roles question? Currently approximated through earnings and ambition questions.
-- Place a random placebo match on each shortlist? Useful as a baseline for evaluating whether the algorithm beat random.
+- Place a random placebo match on each shortlist? Useful as a baseline for evaluating whether the algorithm beat random. `top_gap_in_sds` (how much the top of a shortlist stands out from the rest) is a related but narrower signal — it doesn't establish whether the *scoring itself* beats chance, only whether ordering within a shortlist matters once the scoring is fixed.
 - For the speed-dating event itself: alternate who hosts and who roams at each course, so each side feels like they have agency.

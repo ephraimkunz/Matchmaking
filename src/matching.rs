@@ -84,20 +84,30 @@ pub fn create_matches(
     // Score all pairs
     let (pairs, pairs_stats) = build_scored_pairs(responses, collect_diagnostics);
 
-    // Assign shortlists via round-robin
     let ids = responses
         .iter()
         .map(QuestionnaireResponse::id)
         .collect_vec();
+
+    // Deterministic prep, shared by the randomized assignment below and the diagnostics.
+    let ranked_candidates = build_ranked_candidates(&ids, &pairs);
+
+    if let Some(id) = debug_print_candidate_list {
+        match ranked_candidates.get(id.as_str()) {
+            Some(candidates) => eprintln!("{id}'s candidate_list{candidates:?}"),
+            None => eprintln!("No participant with id \"{id}\" was found in the input."),
+        }
+    }
+
+    // Assign shortlists via round-robin
     let (shortlists, shortlist_stats) = assign_shortlists(
         &ids,
-        &pairs,
+        &ranked_candidates,
         rng,
         collect_diagnostics,
         target_shortlist,
         max_appearances,
         max_appearances_relaxed,
-        debug_print_candidate_list,
     );
 
     let ids_to_responses: FxHashMap<&str, &QuestionnaireResponse> =
@@ -156,6 +166,7 @@ pub fn create_matches(
         shortlist_stats,
         &ids,
         &pairs,
+        &ranked_candidates,
         &result,
         target_shortlist,
         rng_seed,
@@ -418,6 +429,37 @@ fn process_age(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> (f32, f3
     (similarity * weight, weight)
 }
 
+/// Which of the 8 cross-matched pairs use a bipolar preference scale, where the
+/// respondent picks a point on the trait axis, so `1 - |want - have|` is the right
+/// similarity measure. The rest use an importance scale ("...in a partner matters",
+/// 1 = not at all), where wanting less of a trait must not penalize a partner who has
+/// more of it — see `crossmatch_similarity`. Indices line up with
+/// `PartnerPreferences::crossmatched` / `SelfDescription::crossmatched`
+/// (parsing.rs's `crossmatched_indices` arrays).
+const CROSSMATCH_IS_BIPOLAR: [bool; 8] = [
+    true,  // 0 plans carefully            <-> prefers a planner vs. go-with-the-flow
+    false, // 1 artistic side               <-> artistic side matters
+    true,  // 2 energetic and outgoing      <-> prefers homebody vs. very social
+    false, // 3 goal-oriented               <-> ambition matters
+    false, // 4 dry sense of humor          <-> dry humor matters
+    false, // 5 enjoys intellectual debate  <-> intellectually curious matters
+    false, // 6 diet and nutrition          <-> health-conscious matters
+    false, // 7 staying active              <-> active or fit matters
+];
+
+/// Similarity for one cross-matched pair: `want` is how much of the trait the subject
+/// asked for in a partner; `have` is how much of the trait the candidate actually has.
+/// Bipolar items compare position on the axis both ways. Importance items only
+/// penalize a shortfall: wanting less of a trait than a partner has is never a
+/// mismatch, since indifference ("doesn't matter") is satisfied by any amount.
+fn crossmatch_similarity(is_bipolar: bool, want: f32, have: f32) -> f32 {
+    if is_bipolar {
+        1.0 - f32::abs(want - have)
+    } else {
+        1.0 - f32::max(0.0, want - have)
+    }
+}
+
 fn process_self_and_partner(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> (f32, f32) {
     // Reduced because 8 of the 15 self-description items also feed the partner-preferences cross-match below. They score twice.
     const SELF_DESCRIPTION_SECTION_WEIGHT: f32 = 0.6;
@@ -452,14 +494,16 @@ fn process_self_and_partner(a: &QuestionnaireResponse, b: &QuestionnaireResponse
     }
 
     // Calculate cross-matches
-    for (a_answer, b_answer) in a
+    for (k, (a_answer, b_answer)) in a
         .partnerpreferences
         .crossmatched
         .iter()
         .zip(b.selfdescription.crossmatched.iter())
+        .enumerate()
     {
-        let diff = f32::abs(a_answer.normalized() - b_answer.normalized());
-        let similarity = 1.0 - diff;
+        let want = a_answer.normalized();
+        let have = b_answer.normalized();
+        let similarity = crossmatch_similarity(CROSSMATCH_IS_BIPOLAR[k], want, have);
         let weight = PARTNER_PREFERENCES_SECTION_WEIGHT;
         total += similarity * weight;
         weight_sum += weight;
@@ -468,12 +512,26 @@ fn process_self_and_partner(a: &QuestionnaireResponse, b: &QuestionnaireResponse
     (total, weight_sum)
 }
 
-/// Calculate how well b satisfies a's preferences. Not symmetric.
+/// Calculate how well b satisfies a's preferences. Not symmetric. Only used by tests;
+/// `build_scored_pairs` calls `directional_score_with_scale` directly so it can compute
+/// each person's scale factor once instead of on every call.
+#[cfg(test)]
 fn directional_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f32 {
+    let subject_chosen_weight_scale_factor = calculate_subject_chosen_weight_scale_factor(a);
+    directional_score_with_scale(a, b, subject_chosen_weight_scale_factor)
+}
+
+/// Same as `directional_score`, but takes `a`'s weight-scale factor instead of
+/// recomputing it. The factor depends only on `a`, so a caller scoring `a` against many
+/// candidates (`build_scored_pairs`) can compute it once and reuse it here, rather than
+/// recomputing it for every candidate.
+fn directional_score_with_scale(
+    a: &QuestionnaireResponse,
+    b: &QuestionnaireResponse,
+    subject_chosen_weight_scale_factor: f32,
+) -> f32 {
     let mut total = 0.0;
     let mut weight_sum = 0.0;
-
-    let subject_chosen_weight_scale_factor = calculate_subject_chosen_weight_scale_factor(a);
 
     let core_value_results = process_core_values(a, b, subject_chosen_weight_scale_factor);
     total += core_value_results.0;
@@ -507,12 +565,10 @@ fn directional_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f3
     total / weight_sum
 }
 
-/// Calculated the mutual score of a and b in a non-directional way, so that a's compatibility
-/// with b and b's compatibility with a are both contained in a single score.
-fn mutual_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f32 {
-    let ab = directional_score(a, b);
-    let ba = directional_score(b, a);
-
+/// Combine two directional scores for the same pair into one, so that a's compatibility
+/// with b and b's compatibility with a are both contained in a single score. Symmetric:
+/// `combine(ab, ba) == combine(ba, ab)`.
+fn combine(ab: f32, ba: f32) -> f32 {
     // How satisfied is the least satisfied person.
     let min_score = ab.min(ba);
 
@@ -523,13 +579,31 @@ fn mutual_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f32 {
     (0.8 * min_score) + (0.2 * average)
 }
 
+/// Calculated the mutual score of a and b in a non-directional way, so that a's compatibility
+/// with b and b's compatibility with a are both contained in a single score. Only used by
+/// tests, as the reference formula `build_scored_pairs`'s calibrated scoring is built on.
+#[cfg(test)]
+fn mutual_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f32 {
+    combine(directional_score(a, b), directional_score(b, a))
+}
+
+/// The two numbers a scored pair carries. Kept separate because they answer different
+/// questions: `display` is the true mutual compatibility shown to participants and used
+/// in the QUALITY diagnostics; `rank` is only used to order candidates during shortlist
+/// assignment (see `build_scored_pairs` for why they can differ).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct PairScore {
+    pub display: f32,
+    pub rank: f32,
+}
+
 /// Builds a hashmap of (male.id, female.id) -> score. No pairing will be in the map if
 /// there are dealbreakers on either side. Score takes into account how compatible each
 /// side is with the other, so no need for a reverse map (female.id, male.id) -> score.
 fn build_scored_pairs(
     responses: &[QuestionnaireResponse],
     collect_stats: bool,
-) -> (FxHashMap<(&str, &str), f32>, Option<PairsStats>) {
+) -> (FxHashMap<(&str, &str), PairScore>, Option<PairsStats>) {
     // Empirically good enough for 1000 people. Technically the capacity should be (responses / 2) ^ 2 assuming
     // equal numbers of men and women. But dealbreakers shrink that down.
     let mut pairs = FxHashMap::with_capacity_and_hasher(50000, FxBuildHasher);
@@ -557,7 +631,26 @@ fn build_scored_pairs(
         None
     };
 
+    // Each person's weight-scale factor depends only on them, not on any candidate, so
+    // it's computed once per person here instead of twice per pair inside the loop below.
+    let male_scale: FxHashMap<&str, f32> = males
+        .iter()
+        .map(|m| (m.id(), calculate_subject_chosen_weight_scale_factor(m)))
+        .collect();
+    let female_scale: FxHashMap<&str, f32> = females
+        .iter()
+        .map(|f| (f.id(), calculate_subject_chosen_weight_scale_factor(f)))
+        .collect();
+
+    // First pass: score every surviving pair in both directions, and accumulate each
+    // person's own outgoing-score total (their directional score toward every candidate
+    // they're compatible with) so it can be mean-centered in the second pass.
+    let mut raw: Vec<(&str, &str, f32, f32)> = Vec::new();
+    let mut outgoing_sum: FxHashMap<&str, f32> = FxHashMap::default();
+    let mut outgoing_count: FxHashMap<&str, usize> = FxHashMap::default();
+
     for male in &males {
+        let m_scale = male_scale[male.id()];
         for female in &females {
             if let Err(cause) = passes_dealbreakers(male, female) {
                 if let Some(ref mut s) = stats {
@@ -574,15 +667,86 @@ fn build_scored_pairs(
                 continue;
             }
 
-            let score = mutual_score(male, female);
-            pairs.insert((male.id(), female.id()), score);
+            let f_scale = female_scale[female.id()];
+            // How well female satisfies male, and vice versa.
+            let male_wants = directional_score_with_scale(male, female, m_scale);
+            let female_wants = directional_score_with_scale(female, male, f_scale);
+
+            *outgoing_sum.entry(male.id()).or_insert(0.0) += male_wants;
+            *outgoing_count.entry(male.id()).or_insert(0) += 1;
+            *outgoing_sum.entry(female.id()).or_insert(0.0) += female_wants;
+            *outgoing_count.entry(female.id()).or_insert(0) += 1;
+
+            raw.push((male.id(), female.id(), male_wants, female_wants));
         }
+    }
+
+    // A person's own mean directional score toward their candidates. Subtracting this
+    // before combining corrects for rating style: someone who scores everyone highly (or
+    // harshly) no longer gets an artificial edge (or penalty) purely from being generous,
+    // relative to someone with a more typical rating style. A person with fewer than 2
+    // candidates has no meaningful average to subtract, so calibration is a no-op for them.
+    let mean_outgoing = |id: &str| match outgoing_count.get(id) {
+        Some(&count) if count >= 2 => outgoing_sum[id] / count as f32,
+        _ => 0.0,
+    };
+
+    for (male_id, female_id, male_wants, female_wants) in raw {
+        let display = combine(male_wants, female_wants);
+        let rank = combine(
+            male_wants - mean_outgoing(male_id),
+            female_wants - mean_outgoing(female_id),
+        );
+        pairs.insert((male_id, female_id), PairScore { display, rank });
     }
 
     (pairs, stats)
 }
 
 type Shortlists = FxHashMap<String, Vec<(String, f32)>>;
+
+/// Per person, their candidates ranked descending by `PairScore::rank`. Each entry is
+/// `(candidate_id, rank_score, display_score)`; `rank_score` decides ordering,
+/// `display_score` is what gets shown once a candidate is picked.
+pub(crate) type RankedCandidates<'a> = FxHashMap<&'a str, Vec<(&'a str, f32, f32)>>;
+
+/// Precompute each person's ranked candidate list (descending by rank score). This is the
+/// deterministic, expensive-ish part of matching (`O(pairs)`), kept separate from the
+/// cheap randomized assignment in `assign_shortlists` so the diagnostics can also see it.
+fn build_ranked_candidates<'a>(
+    ids: &[&'a str],
+    pairs: &'a FxHashMap<(&'a str, &'a str), PairScore>,
+) -> RankedCandidates<'a> {
+    let mut ranked_candidates: RankedCandidates<'a> = FxHashMap::default();
+
+    // Estimated that we don't have dealbreakers with 1/2 of the other gender (1/2 of ids, assuming equal gender ratios).
+    let estimated_rank_capacity = ids.len() / 4;
+    for (&(a, b), score) in pairs {
+        ranked_candidates
+            .entry(a)
+            .or_insert(Vec::with_capacity(estimated_rank_capacity))
+            .push((b, score.rank, score.display));
+        ranked_candidates
+            .entry(b)
+            .or_insert(Vec::with_capacity(estimated_rank_capacity))
+            .push((a, score.rank, score.display));
+    }
+
+    // Ensure every id has an entry, even people who are not in pairs (only one of their gender, or dealbreakers that exclude everyone else)
+    for pid in ids {
+        ranked_candidates.entry(pid).or_default();
+    }
+
+    for value in ranked_candidates.values_mut() {
+        // Reverse sort by rank score, so the best-still-available candidate comes first.
+        value.sort_unstable_by(|a, b| {
+            b.1.partial_cmp(&a.1)
+                .expect("Should be able to compare floats")
+        });
+    }
+
+    ranked_candidates
+}
 
 /// Run one round of shortlist assignment: shuffle the incomplete set, then offer each person
 /// their next-best available candidate under the current cap. Returns true if at least one
@@ -593,7 +757,7 @@ fn run_round<'a>(
     rng: &mut StdRng,
     target_shortlist: usize,
     cap: usize,
-    ranked_candidates: &'a FxHashMap<&'a str, Vec<(&'a str, f32)>>,
+    ranked_candidates: &'a RankedCandidates<'a>,
     shortlists: &mut FxHashMap<String, Vec<(String, f32)>>,
     appearance_count: &mut FxHashMap<&'a str, usize>,
     excess_ranks: &mut Vec<usize>,
@@ -628,16 +792,14 @@ fn run_round<'a>(
     made_progress
 }
 
-#[allow(clippy::too_many_arguments)]
-fn assign_shortlists(
-    ids: &[&str],
-    pairs: &FxHashMap<(&str, &str), f32>,
+fn assign_shortlists<'a>(
+    ids: &[&'a str],
+    ranked_candidates: &'a RankedCandidates<'a>,
     rng: &mut StdRng,
     collect_stats: bool,
     target_shortlist: usize,
     max_appearances: usize,
     max_appearances_relaxed: usize,
-    debug_print_candidate_list: Option<String>,
 ) -> (Shortlists, Option<ShortlistStats>) {
     let mut cap = max_appearances;
     let mut cap_relaxed = false;
@@ -645,42 +807,8 @@ fn assign_shortlists(
     let mut shortlists: FxHashMap<String, Vec<(String, f32)>> = FxHashMap::default();
     let mut excess_ranks: Vec<usize> = Vec::new();
 
-    // Precompute each person's ranked candidate list (descending score)
-    let mut ranked_candidates: FxHashMap<&str, Vec<(&str, f32)>> = FxHashMap::default();
-
-    // Estimated that we don't have dealbreakers with 1/2 of the other gender (1/2 of ids, assuming equal gender ratios).
-    let estimated_rank_capacity = ids.len() / 4;
-    for ((a, b), &s) in pairs {
-        ranked_candidates
-            .entry(a)
-            .or_insert(Vec::with_capacity(estimated_rank_capacity))
-            .push((b, s));
-        ranked_candidates
-            .entry(b)
-            .or_insert(Vec::with_capacity(estimated_rank_capacity))
-            .push((a, s));
-    }
-
-    // Ensure every id has an entry, even people who are not in pairs (only one of their gender, or dealbreakers that exclude everyone else)
     for pid in ids {
-        ranked_candidates.entry(pid).or_default();
         shortlists.entry(pid.to_string()).or_default();
-    }
-
-    for value in ranked_candidates.values_mut() {
-        // Reverse sort, so largest scores come first.
-        value.sort_unstable_by(|a, b| {
-            b.1.partial_cmp(&a.1)
-                .expect("Should be able to compare floats")
-        });
-    }
-
-    if let Some(id) = debug_print_candidate_list {
-        println!(
-            "{}'s candidate_list{:?}",
-            id,
-            ranked_candidates[id.as_str()]
-        );
     }
 
     let mut incomplete: FxHashSet<_> = ids.iter().collect();
@@ -695,7 +823,7 @@ fn assign_shortlists(
                 rng,
                 target_shortlist,
                 cap,
-                &ranked_candidates,
+                ranked_candidates,
                 &mut shortlists,
                 &mut appearance_count,
                 &mut excess_ranks,
@@ -738,11 +866,12 @@ fn assign_shortlists(
 fn next_available<'a>(
     pid: &str,
     current_cap: usize,
-    ranked_candidates: &'a FxHashMap<&str, Vec<(&str, f32)>>,
+    ranked_candidates: &'a RankedCandidates<'a>,
     shortlists: &FxHashMap<String, Vec<(String, f32)>>,
     appearance_count: &FxHashMap<&str, usize>,
 ) -> Option<(&'a str, f32, usize)> {
-    for (rank, (other_id, score)) in ranked_candidates[pid].iter().enumerate() {
+    for (rank, (other_id, _rank_score, display_score)) in ranked_candidates[pid].iter().enumerate()
+    {
         if shortlists
             .get(pid)
             .is_some_and(|sl| sl.iter().any(|i| &i.0 == other_id))
@@ -752,18 +881,88 @@ fn next_available<'a>(
         if appearance_count.get(other_id).copied().unwrap_or(0) >= current_cap {
             continue;
         }
-        return Some((other_id, *score, rank));
+        return Some((other_id, *display_score, rank));
     }
 
     None
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp)] // exact comparisons against deterministic, hand-computed values
 mod tests {
-    use crate::parsing::{Dealbreakers, Demographics, MyReligiousCommitment};
+    use crate::parsing::{Dealbreakers, Demographics, FourChoiceResponse, MyReligiousCommitment};
     use crate::rng_and_seed;
 
     use super::*;
+
+    #[test]
+    fn crossmatch_similarity_shortfall_only_for_importance_scale() {
+        let normalized = |v: u8| FourChoiceResponse(v).normalized();
+        // Importance scale (is_bipolar = false): indifference is always satisfied;
+        // wanting more of a trait than a partner has costs the shortfall, but wanting
+        // less than the partner has is never a mismatch.
+        assert_eq!(
+            crossmatch_similarity(false, normalized(1), normalized(4)),
+            1.0
+        ); // don't care, partner has plenty -> perfect
+        assert_eq!(
+            crossmatch_similarity(false, normalized(4), normalized(1)),
+            0.0
+        ); // essential, partner has none -> worst
+        assert_eq!(
+            crossmatch_similarity(false, normalized(3), normalized(4)),
+            1.0
+        ); // wanted less than the partner has -> no penalty
+        assert!(
+            (crossmatch_similarity(false, normalized(3), normalized(2)) - 2.0 / 3.0).abs() < 1e-6
+        );
+    }
+
+    #[test]
+    fn crossmatch_similarity_bipolar_penalizes_either_direction() {
+        let normalized = |v: u8| FourChoiceResponse(v).normalized();
+        // Bipolar scale (is_bipolar = true): distance in either direction costs the same.
+        assert_eq!(
+            crossmatch_similarity(true, normalized(1), normalized(4)),
+            0.0
+        );
+        assert_eq!(
+            crossmatch_similarity(true, normalized(4), normalized(1)),
+            0.0
+        );
+        assert_eq!(
+            crossmatch_similarity(true, normalized(1), normalized(1)),
+            1.0
+        );
+    }
+
+    #[test]
+    fn calibration_is_noop_with_only_one_candidate() {
+        let male = QuestionnaireResponse {
+            demographics: Demographics {
+                email: "male@example.com".to_string(),
+                gender: Gender::Male,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let female = QuestionnaireResponse {
+            demographics: Demographics {
+                email: "female@example.com".to_string(),
+                gender: Gender::Female,
+                age: Age(30),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        // With exactly one candidate each, neither side has a meaningful outgoing
+        // average to subtract, so the calibrated rank score must equal the display score.
+        let responses = [male, female];
+        let (pairs, _) = build_scored_pairs(&responses, false);
+        assert_eq!(pairs.len(), 1);
+        let score = pairs.values().next().expect("exactly one pair");
+        assert_eq!(score.rank, score.display);
+    }
 
     #[test]
     fn children_dealbreaker_opposite() {
@@ -1134,7 +1333,7 @@ mod tests {
     fn test_default_mutual_score() {
         let default = QuestionnaireResponse::default();
         let mutual_score = mutual_score(&default, &default);
-        assert_eq!(mutual_score, 1.0)
+        assert_eq!(mutual_score, 1.0);
     }
 
     #[test]
@@ -1147,7 +1346,7 @@ mod tests {
                 cards: vec![],
                 print_scores: true
             }
-        )
+        );
     }
 
     #[test]
@@ -1171,13 +1370,13 @@ mod tests {
             matches,
             Matches {
                 cards: vec![MatchCard {
-                    name: "".to_string(),
-                    email: "".to_string(),
+                    name: String::new(),
+                    email: String::new(),
                     shortlist: vec![],
                 }],
                 print_scores: true
             }
-        )
+        );
     }
 
     #[test]
@@ -1225,7 +1424,7 @@ mod tests {
                             age: Age(26),
                             email: "second".to_string(),
                             freeresponse: FreeResponse { responses: vec![] },
-                            score: 0.98976606
+                            score: 0.989_766_06
                         }]
                     },
                     MatchCard {
@@ -1236,12 +1435,12 @@ mod tests {
                             age: Age(34),
                             email: "first".to_string(),
                             freeresponse: FreeResponse { responses: vec![] },
-                            score: 0.98976606
+                            score: 0.989_766_06
                         }]
                     }
                 ],
                 print_scores: true
             }
-        )
+        );
     }
 }

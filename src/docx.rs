@@ -1,4 +1,5 @@
 use crate::matching::{Matches, ShortlistMatch};
+#[allow(clippy::wildcard_imports)] // docx-rs's builder API is meant to be used this way
 use docx_rs::*;
 
 const FONT: &str = "Source Sans Pro";
@@ -14,6 +15,10 @@ const USABLE_WIDTH: usize = (PAGE_WIDTH - MARGIN as u32 * 2) as usize;
 
 const LINE_SPACING: i32 = 240;
 
+/// # Errors
+///
+/// Returns an error if `./matches.docx` can't be created or written (e.g. permissions,
+/// disk full).
 pub fn generate_docx(matches: &Matches) -> anyhow::Result<()> {
     let file = std::fs::File::create("./matches.docx")?;
     generate_docx_data(matches).pack(file)?;
@@ -34,7 +39,7 @@ fn generate_docx_data(matches: &Matches) -> Docx {
         .east_asia(SEMIBOLD_FONT);
 
     let cards = generate_cards(matches, &run_font, &semi_bold_run_font);
-    let section = generate_section(cards);
+    let section = generate_section(&cards);
 
     let styles = Styles::new()
         .default_fonts(run_font.clone())
@@ -164,7 +169,7 @@ fn generate_match_info(
                 .line_spacing(LineSpacing::new().after(40).line(LINE_SPACING))
                 .add_run(
                     Run::new()
-                        .add_text(format!("{} ", prompt)) // Separator colon is baked into the prompt.
+                        .add_text(format!("{prompt} ")) // Separator colon is baked into the prompt.
                         .size(18)
                         .fonts(semi_bold_run_font.clone()),
                 )
@@ -227,7 +232,7 @@ fn generate_table_borders() -> TableBorders {
         )
 }
 
-fn generate_section(cards: Vec<Table>) -> Section {
+fn generate_section(cards: &[Table]) -> Section {
     let page_size = PageSize::new().width(PAGE_WIDTH).height(PAGE_HEIGHT);
     let page_margin = PageMargin::new()
         .top(MARGIN)
@@ -278,8 +283,13 @@ mod tests {
                         name: "Candidate B".to_string(),
                         age: Age(26),
                         email: "second".to_string(),
-                        freeresponse: FreeResponse { responses: vec![] },
-                        score: 0.98976606,
+                        freeresponse: FreeResponse {
+                            responses: vec![(
+                                "Favorite hobby:".to_string(),
+                                "Beekeeping".to_string(),
+                            )],
+                        },
+                        score: 0.989_766_06,
                     }],
                 },
                 MatchCard {
@@ -290,7 +300,7 @@ mod tests {
                         age: Age(34),
                         email: "first".to_string(),
                         freeresponse: FreeResponse { responses: vec![] },
-                        score: 0.98976606,
+                        score: 0.989_766_06,
                     }],
                 },
             ],
@@ -298,7 +308,25 @@ mod tests {
         };
 
         let data = generate_docx_data(&matches);
+        // Both cards land in one Section, since generate_section groups pairs of cards
+        // together into a single section (see the two-cards-per-page chunking above).
         assert_eq!(data.document.children.len(), 1);
-        assert_eq!(data.build().document.len(), 6711);
+
+        let xml = String::from_utf8(data.build().document)
+            .expect("generated docx XML should be valid UTF-8");
+        for expected in [
+            "Candidate A",
+            "Candidate B",
+            "first",
+            "second",
+            "Favorite hobby:",
+            "Beekeeping",
+            "no profile answers on file",
+        ] {
+            assert!(
+                xml.contains(expected),
+                "expected generated docx XML to contain {expected:?}"
+            );
+        }
     }
 }
