@@ -681,11 +681,30 @@ fn build_scored_pairs(
         }
     }
 
-    // A person's own mean directional score toward their candidates. Subtracting this
-    // before combining corrects for rating style: someone who scores everyone highly (or
-    // harshly) no longer gets an artificial edge (or penalty) purely from being generous,
-    // relative to someone with a more typical rating style. A person with fewer than 2
-    // candidates has no meaningful average to subtract, so calibration is a no-op for them.
+    // A person's own mean directional score toward their candidates. Nobody rates anyone
+    // directly here — this score comes entirely from comparing a person's own answers,
+    // preferences, and self-assigned importance weights against each candidate's answers.
+    // But that means some people's own answers structurally score higher or lower against
+    // nearly everyone: narrow partner preferences score low against most of the pool,
+    // answers near the pool's center score higher, independent of fit with any specific
+    // candidate. Subtracting this baseline before combining keeps that structural effect
+    // out of who ranks above whom, without touching the display score participants see.
+    //
+    // Why this can't lose real signal: subtracting a constant from both of a person's
+    // directional scores cannot reorder their own candidate list — it only shifts which
+    // side binds the min() inside `combine`. Before centering, someone with narrow
+    // preferences scored low against everyone, so their side always bound the min, so
+    // every pair containing them looked bad regardless of who the candidate was — they
+    // got buried on every list. Centering makes that min compare "who's getting the
+    // worse deal by their own standards" instead of "whose absolute number is smaller",
+    // without overriding anyone's actual stated preferences.
+    //
+    // This only corrects a person's own outgoing tendency, not how much they're wanted by
+    // others in return, so it blunts `person_effect_share` rather than eliminating it —
+    // see `person_effect_share_calibrated` and `headroom_ranking` in diagnostics.rs for
+    // how much it actually blunts, measured on real data. A person with fewer than 2
+    // candidates has no meaningful average to subtract, so calibration is a no-op for
+    // them.
     let mean_outgoing = |id: &str| match outgoing_count.get(id) {
         Some(&count) if count >= 2 => outgoing_sum[id] / count as f32,
         _ => 0.0,
@@ -962,6 +981,104 @@ mod tests {
         assert_eq!(pairs.len(), 1);
         let score = pairs.values().next().expect("exactly one pair");
         assert_eq!(score.rank, score.display);
+    }
+
+    #[test]
+    fn calibration_can_change_rank_order_but_never_display() {
+        use crate::parsing::FourChoiceResponse;
+
+        let male = |email: &str| QuestionnaireResponse {
+            demographics: Demographics {
+                email: email.to_string(),
+                gender: Gender::Male,
+                age: Age(30),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let female = |email: &str| QuestionnaireResponse {
+            demographics: Demographics {
+                email: email.to_string(),
+                gender: Gender::Female,
+                age: Age(30),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let m1 = male("m1@example.com");
+        let mut m2 = male("m2@example.com");
+        let mut f_narrow = female("f_narrow@example.com");
+        let f_typical = female("f_typical@example.com");
+
+        // f_narrow wants three traits (non-bipolar "importance" crossmatch items)
+        // strongly, but every male defaults to not having any of them. That shortfall
+        // drags f_narrow's own directional score toward every male down uniformly — a
+        // structural, answer-driven person effect, not a reflection of fit with any
+        // specific candidate. (Non-bipolar, so indifference — the default "want" — is
+        // always satisfied regardless of what a candidate "has"; only f_narrow's own
+        // non-default wants create a shortfall here, and only on her own outgoing side.)
+        f_narrow.partnerpreferences.crossmatched[1] = FourChoiceResponse(4);
+        f_narrow.partnerpreferences.crossmatched[4] = FourChoiceResponse(4);
+        f_narrow.partnerpreferences.crossmatched[5] = FourChoiceResponse(4);
+
+        // m2 specifically wants a fourth, distinct non-bipolar trait that only f_narrow
+        // has. This is genuine pair-specific compatibility, smaller in magnitude than
+        // f_narrow's person effect above: m2 is a better match for f_narrow than for
+        // f_typical, but not by enough to overcome her person effect on raw display.
+        m2.partnerpreferences.crossmatched[3] = FourChoiceResponse(4);
+        f_narrow.selfdescription.crossmatched[3] = FourChoiceResponse(4);
+
+        let responses = [m1.clone(), m2.clone(), f_narrow.clone(), f_typical.clone()];
+        let (pairs, _) = build_scored_pairs(&responses, false);
+        assert_eq!(pairs.len(), 4);
+
+        let get = |m: &QuestionnaireResponse, f: &QuestionnaireResponse| {
+            *pairs.get(&(m.id(), f.id())).expect("pair should be scored")
+        };
+
+        // Regression guard: calibration must never change the display score. Check it
+        // against an independently-computed value, not just against itself.
+        for (m, f) in [
+            (&m1, &f_narrow),
+            (&m1, &f_typical),
+            (&m2, &f_narrow),
+            (&m2, &f_typical),
+        ] {
+            let score = get(m, f);
+            let independent_display = mutual_score(m, f);
+            assert!(
+                (score.display - independent_display).abs() < 1e-6,
+                "display score for ({}, {}) should match an independent recomputation: {} vs {}",
+                m.id(),
+                f.id(),
+                score.display,
+                independent_display
+            );
+        }
+
+        let m2_narrow = get(&m2, &f_narrow);
+        let m2_typical = get(&m2, &f_typical);
+
+        // The construction's whole point: f_narrow's person effect (from the shortfall
+        // above) is enough to make her look worse than f_typical by raw display score,
+        // even though she is genuinely the better match for m2 specifically.
+        assert!(
+            m2_narrow.display < m2_typical.display,
+            "expected f_narrow's person effect to drag her display score below f_typical's for m2: {} vs {}",
+            m2_narrow.display,
+            m2_typical.display
+        );
+        // Calibration should recover the genuine pair-specific fit: once each woman's
+        // own outgoing average is subtracted out, f_narrow should rank above f_typical
+        // for m2 — the opposite order from display, and never the case with only one
+        // candidate per side (see `calibration_is_noop_with_only_one_candidate`).
+        assert!(
+            m2_narrow.rank > m2_typical.rank,
+            "expected calibration to flip m2's ranking of f_narrow above f_typical: {} vs {}",
+            m2_narrow.rank,
+            m2_typical.rank
+        );
     }
 
     #[test]

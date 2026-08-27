@@ -21,6 +21,11 @@ pub struct Diagnostics {
     /// people score well, or poorly, with almost everyone) rather than genuine
     /// pair-specific compatibility. A property of the raw scoring, not of any one run.
     pub person_effect_share: f32,
+    /// Same fit as `person_effect_share`, but on the calibrated rank score instead of
+    /// the display score — how much of the person effect survives the mean-centering
+    /// shortlist assignment applies. Lower than `person_effect_share` whenever
+    /// calibration is doing its job; equal only if there was nothing to blunt.
+    pub person_effect_share_calibrated: f32,
     /// The most different subjects' top-`target_shortlist` *candidate* lists (by rank
     /// score) any single person appears on.
     pub demand_max: usize,
@@ -58,9 +63,24 @@ pub struct Diagnostics {
     pub mutual_rate: f32,
     /// Total served score divided by the sum, over each person, of their own best
     /// `min(target_shortlist, viable_candidate_count)` display scores. 1.0 means the
-    /// assignment captured every point of quality the pool allowed; anything lost is
-    /// the cap/round-robin's fault, not the pool's.
+    /// assignment captured every point of quality the pool allowed. Decomposes exactly
+    /// as `headroom_ranking * headroom_assignment`: anything lost is calibration's
+    /// re-ranking, the appearance cap/round-robin, or both — check the two factors
+    /// below to see which.
     pub headroom_ratio: f32,
+    /// `headroom_ratio`'s calibration-only factor: the same top-`target_shortlist`
+    /// display-score sum, but selected in (calibrated) rank order instead of display
+    /// order, divided by the display-order sum. 1.0 means calibration's re-ranking
+    /// picked the exact same top-N a raw display-score ranking would have — no
+    /// compatibility given up to make ranking fairer. Only differs from 1.0 when
+    /// someone has more viable candidates than `target_shortlist`, since with fewer,
+    /// both sums are over the same full set regardless of order.
+    pub headroom_ranking: f32,
+    /// `headroom_ratio`'s appearance-cap/round-robin-only factor: served score divided
+    /// by the top-`target_shortlist` sum in (calibrated) rank order — the assignment's
+    /// actual ideal, with calibration's cost already factored out via
+    /// `headroom_ranking`. 1.0 means the cap and round-robin cost nothing beyond that.
+    pub headroom_assignment: f32,
     pub headroom_worst_person: f32,
     pub headroom_p5: f32,
     /// Standard deviation of display scores across every scored pair.
@@ -87,6 +107,7 @@ impl Default for Diagnostics {
             dealbreaker_by_marriage_timeline: 0,
             dealbreaker_by_religion: 0,
             person_effect_share: 0.0,
+            person_effect_share_calibrated: 0.0,
             demand_max: 0,
             demand_zero: 0,
             demand_gini: 0.0,
@@ -105,6 +126,8 @@ impl Default for Diagnostics {
             rank_regret_p95: 0,
             mutual_rate: 0.0,
             headroom_ratio: 1.0,
+            headroom_ranking: 1.0,
+            headroom_assignment: 1.0,
             headroom_worst_person: 1.0,
             headroom_p5: 1.0,
             pair_score_stddev: 0.0,
@@ -165,6 +188,12 @@ impl Display for Diagnostics {
             "person_effect_share",
             format!("{:.1}%", self.person_effect_share * 100.0)
         )?;
+        writeln!(
+            f,
+            "  {:<P_LW$}{:>P_VW$}",
+            "person_effect_calib",
+            format!("{:.1}%", self.person_effect_share_calibrated * 100.0)
+        )?;
         writeln!(f, "  {:<P_LW$}{:>P_VW$}", "demand_max", self.demand_max)?;
         writeln!(f, "  {:<P_LW$}{:>P_VW$}", "demand_zero", self.demand_zero)?;
         writeln!(
@@ -184,7 +213,11 @@ impl Display for Diagnostics {
         )?;
         writeln!(
             f,
-            "  person_effect_share: how much of the score spread is \"this person rates/is rated highly by everyone\" rather than genuine pair fit. High means the scoring is closer to a popularity contest than a compatibility measure."
+            "  person_effect_share: how much of the score spread is one person's own answers and importance weights scoring them high or low against nearly everyone, rather than genuine pair fit. It's a property of the scoring math, not a literal rating — nobody rates anyone directly. High means the scoring is closer to a popularity contest than a compatibility measure."
+        )?;
+        writeln!(
+            f,
+            "  person_effect_calib: the same fit, on the calibrated score shortlist assignment actually ranks by. How much of person_effect_share survives mean-centering — lower means the correction is working; equal to person_effect_share only if there was nothing to correct. See headroom_ranking for what calibration cost in absolute compatibility."
         )?;
         writeln!(
             f,
@@ -322,6 +355,18 @@ impl Display for Diagnostics {
         writeln!(
             f,
             "  {:<Q_LW$}{:>Q_VW$}",
+            "headroom_ranking",
+            format!("{:.1}%", self.headroom_ranking * 100.0)
+        )?;
+        writeln!(
+            f,
+            "  {:<Q_LW$}{:>Q_VW$}",
+            "headroom_assign",
+            format!("{:.1}%", self.headroom_assignment * 100.0)
+        )?;
+        writeln!(
+            f,
+            "  {:<Q_LW$}{:>Q_VW$}",
             "headroom_worst",
             format!("{:.1}%", self.headroom_worst_person * 100.0)
         )?;
@@ -386,11 +431,19 @@ impl Display for Diagnostics {
         )?;
         writeln!(
             f,
-            "  headroom_ratio: served score as a fraction of the best score the pool could have given everyone if the appearance cap and round-robin were perfect. Low values mean the assignment, not the pool, is costing quality — the fix is a better algorithm, not better data."
+            "  headroom_ratio: served score as a fraction of the best score the pool could have given everyone with a perfect appearance cap and round-robin. Low values mean quality was left on the table; headroom_ranking and headroom_assign below split out whether calibration or the assignment cost it."
         )?;
         writeln!(
             f,
-            "  headroom_worst / headroom_p5: same ratio for the single worst-served person, and the 5th percentile; a healthy run keeps these close to headroom_ratio"
+            "  headroom_ranking: calibration's share of any headroom lost — the same top-N sum, picked in calibrated rank order vs. raw display order. 100% = calibration's re-ranking gave up no compatibility to be fairer. Below 100% means calibration swapped in a lower-display candidate for someone with more viable candidates than target_shortlist."
+        )?;
+        writeln!(
+            f,
+            "  headroom_assign: the appearance cap/round-robin's share of any headroom lost, given calibration's ranking as the ideal. headroom_ratio == headroom_ranking * headroom_assign."
+        )?;
+        writeln!(
+            f,
+            "  headroom_worst / headroom_p5: same ratio as headroom_ratio for the single worst-served person, and the 5th percentile; a healthy run keeps these close to headroom_ratio"
         )?;
         writeln!(
             f,
@@ -472,19 +525,26 @@ fn gini_coefficient(counts: &[usize]) -> f32 {
     gini
 }
 
-/// Fit `display_score(a, b) ≈ mu + alpha_a + alpha_b` by alternating least squares, and
-/// return the fraction of total score variance explained by the additive per-person
-/// effects, as opposed to genuine pair-specific compatibility. This is a property of the
-/// raw scoring function on this input, independent of any calibration the matching step
-/// applies downstream.
-fn fit_person_effect_share(pairs: &FxHashMap<(&str, &str), PairScore>) -> f32 {
+/// Fit `score(a, b) ≈ mu + alpha_a + alpha_b` by alternating least squares, and return
+/// the fraction of total score variance explained by the additive per-person effects, as
+/// opposed to genuine pair-specific compatibility. `score` selects which half of
+/// `PairScore` to fit: `|p| p.display` measures the raw scoring function on this input,
+/// independent of any calibration the matching step applies downstream; `|p| p.rank`
+/// measures how much of that person effect survives calibration's mean-centering. Note
+/// that a person with fewer than 2 viable candidates has their own mean-subtraction
+/// skipped when `rank` is built (see `build_scored_pairs`), so pairs involving them are
+/// only partially calibrated in that fit.
+fn fit_person_effect_share(
+    pairs: &FxHashMap<(&str, &str), PairScore>,
+    score: impl Fn(&PairScore) -> f32,
+) -> f32 {
     const ITERATIONS: usize = 25;
 
     if pairs.len() < 2 {
         return 0.0;
     }
 
-    let scores: Vec<f32> = pairs.values().map(|p| p.display).collect();
+    let scores: Vec<f32> = pairs.values().map(&score).collect();
     let mu = scores.iter().sum::<f32>() / scores.len() as f32;
     let total_variance = population_variance(&scores);
     if total_variance <= f32::EPSILON {
@@ -492,9 +552,10 @@ fn fit_person_effect_share(pairs: &FxHashMap<(&str, &str), PairScore>) -> f32 {
     }
 
     let mut incident: FxHashMap<&str, Vec<(&str, f32)>> = FxHashMap::default();
-    for (&(a, b), score) in pairs {
-        incident.entry(a).or_default().push((b, score.display));
-        incident.entry(b).or_default().push((a, score.display));
+    for (&(a, b), pair_score) in pairs {
+        let s = score(pair_score);
+        incident.entry(a).or_default().push((b, s));
+        incident.entry(b).or_default().push((a, s));
     }
 
     let mut alpha: FxHashMap<&str, f32> = incident.keys().map(|&k| (k, 0.0)).collect();
@@ -503,7 +564,7 @@ fn fit_person_effect_share(pairs: &FxHashMap<(&str, &str), PairScore>) -> f32 {
         for (&person, neighbors) in &incident {
             let sum: f32 = neighbors
                 .iter()
-                .map(|&(other, score)| score - mu - alpha[other])
+                .map(|&(other, s)| s - mu - alpha[other])
                 .sum();
             next_alpha.insert(person, sum / neighbors.len() as f32);
         }
@@ -517,7 +578,7 @@ fn fit_person_effect_share(pairs: &FxHashMap<(&str, &str), PairScore>) -> f32 {
 
     let residuals: Vec<f32> = pairs
         .iter()
-        .map(|(&(a, b), score)| score.display - mu - alpha[a] - alpha[b])
+        .map(|(&(a, b), pair_score)| score(pair_score) - mu - alpha[a] - alpha[b])
         .collect();
     let residual_variance = population_variance(&residuals);
 
@@ -692,14 +753,32 @@ pub fn build_diagnostics(
     // ignoring the appearance cap entirely.
     let mut served_total = 0.0f32;
     let mut ideal_total = 0.0f32;
+    let mut rank_ideal_total = 0.0f32;
     let mut headroom_ratios: Vec<f32> = Vec::with_capacity(total_participants);
     for card in &result.cards {
         let served_sum: f32 = card.shortlist.iter().map(|m| m.score).sum();
         let ideal_sum: f32 = sorted_display
             .get(card.email.as_str())
             .map_or(0.0, |scores| scores.iter().take(target_shortlist).sum());
+        // Same top-`target_shortlist` display-score sum as `ideal_sum`, but selected in
+        // (calibrated) rank order instead of display order. Differs from `ideal_sum`
+        // only when this person has more viable candidates than `target_shortlist` and
+        // calibration's ranking picks a different subset than raw display score would
+        // have — with fewer candidates than the target, both sums are over the same
+        // full set and are equal regardless of order.
+        let rank_ideal_sum: f32 =
+            ranked_candidates
+                .get(card.email.as_str())
+                .map_or(0.0, |candidates| {
+                    candidates
+                        .iter()
+                        .take(target_shortlist)
+                        .map(|&(_, _, display)| display)
+                        .sum()
+                });
         served_total += served_sum;
         ideal_total += ideal_sum;
+        rank_ideal_total += rank_ideal_sum;
         headroom_ratios.push(if ideal_sum > f32::EPSILON {
             served_sum / ideal_sum
         } else {
@@ -708,6 +787,18 @@ pub fn build_diagnostics(
     }
     let headroom_ratio = if ideal_total > f32::EPSILON {
         served_total / ideal_total
+    } else {
+        1.0
+    };
+    // Decomposition of `headroom_ratio`: `headroom_ranking * headroom_assignment ==
+    // headroom_ratio` (see the field docs on `Diagnostics` for what each isolates).
+    let headroom_ranking = if ideal_total > f32::EPSILON {
+        rank_ideal_total / ideal_total
+    } else {
+        1.0
+    };
+    let headroom_assignment = if rank_ideal_total > f32::EPSILON {
+        served_total / rank_ideal_total
     } else {
         1.0
     };
@@ -748,8 +839,11 @@ pub fn build_diagnostics(
         0.0
     };
 
-    // Person effects: a property of the raw scoring, computed on display scores only.
-    let person_effect_share = fit_person_effect_share(pairs);
+    // Person effects: `person_effect_share` is a property of the raw scoring (display
+    // score); `person_effect_share_calibrated` is the same fit on the rank score, so the
+    // gap between the two is how much calibration's mean-centering actually blunted.
+    let person_effect_share = fit_person_effect_share(pairs, |p| p.display);
+    let person_effect_share_calibrated = fit_person_effect_share(pairs, |p| p.rank);
 
     // Demand concentration: how many different subjects put each candidate in their own
     // top-target_shortlist, by the same (calibrated) rank order the assignment uses.
@@ -779,6 +873,7 @@ pub fn build_diagnostics(
         dealbreaker_by_marriage_timeline: ps.dealbreaker_by_marriage_timeline,
         dealbreaker_by_religion: ps.dealbreaker_by_religion,
         person_effect_share,
+        person_effect_share_calibrated,
         demand_max,
         demand_zero,
         demand_gini,
@@ -797,6 +892,8 @@ pub fn build_diagnostics(
         rank_regret_p95,
         mutual_rate,
         headroom_ratio,
+        headroom_ranking,
+        headroom_assignment,
         headroom_worst_person,
         headroom_p5,
         pair_score_stddev,
@@ -864,6 +961,7 @@ mod tests {
         );
         assert!((0.0..=1.0).contains(&diags.mutual_rate));
         assert!((0.0..=1.0).contains(&diags.person_effect_share));
+        assert!((0.0..=1.0).contains(&diags.person_effect_share_calibrated));
         assert!((0.0..=1.0).contains(&diags.demand_gini));
         assert!(diags.demand_max <= total);
         assert!(diags.entries_served <= diags.max_possible_entries);
@@ -875,12 +973,35 @@ mod tests {
         assert_eq!(diags.algorithm_limited_short, 0);
         assert_eq!(diags.entries_served, diags.max_possible_entries);
         assert!(diags.headroom_ratio >= 0.0 && diags.headroom_ratio <= 1.0 + 1e-4);
+        assert!(diags.headroom_ranking >= 0.0 && diags.headroom_ranking <= 1.0 + 1e-4);
+        assert!(diags.headroom_assignment >= 0.0 && diags.headroom_assignment <= 1.0 + 1e-4);
+        // The whole point of splitting headroom_ratio in two: the factors reproduce it
+        // exactly (within float tolerance), so a caller can trust either piece alone.
+        assert!(
+            (diags.headroom_ranking * diags.headroom_assignment - diags.headroom_ratio).abs()
+                < 1e-4,
+            "headroom_ranking ({}) * headroom_assignment ({}) should equal headroom_ratio ({})",
+            diags.headroom_ranking,
+            diags.headroom_assignment,
+            diags.headroom_ratio
+        );
+        // The core claim calibration is kept for: on real data, mean-centering should
+        // reduce (or at worst leave unchanged) how much of the score spread is a person
+        // effect rather than genuine pair fit.
+        assert!(
+            diags.person_effect_share_calibrated <= diags.person_effect_share + 1e-4,
+            "calibration should not increase the person effect: raw {}, calibrated {}",
+            diags.person_effect_share,
+            diags.person_effect_share_calibrated
+        );
         assert!(diags.pair_score_stddev >= 0.0);
 
         let text = diags.to_string();
         assert!(!text.is_empty());
         assert!(text.contains("CONVERGENCE"));
         assert!(text.contains("headroom_ratio"));
+        assert!(text.contains("headroom_ranking"));
+        assert!(text.contains("person_effect_calib"));
         assert!(text.contains("demand_gini"));
         assert!(text.contains("possible_entries"));
     }
@@ -900,6 +1021,9 @@ mod tests {
             serde_json::from_str(&json).expect("serialized diagnostics should parse as JSON");
         assert_eq!(value["seed"], 7);
         assert!(value["headroom_ratio"].is_number());
+        assert!(value["headroom_ranking"].is_number());
+        assert!(value["headroom_assignment"].is_number());
+        assert!(value["person_effect_share_calibrated"].is_number());
         assert!(value["demand_gini"].is_number());
     }
 

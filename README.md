@@ -89,13 +89,15 @@ POOL  is the input usable?
     marriage_timeline        131
     religion                1063
   person_effect_share      31.3%
+  person_effect_calib      12.6%
   demand_max                  14
   demand_zero                   4
   demand_gini               0.34
 
   pairs_scored: (male, female) pairs that survived all dealbreakers and got a score
   dealbreaker_eliminated: pairs rejected before scoring due to dealbreakers
-  person_effect_share: how much of the score spread is "this person rates/is rated highly by everyone" rather than genuine pair fit. High means the scoring is closer to a popularity contest than a compatibility measure.
+  person_effect_share: how much of the score spread is one person's own answers and importance weights scoring them high or low against nearly everyone, rather than genuine pair fit. It's a property of the scoring math, not a literal rating — nobody rates anyone directly. High means the scoring is closer to a popularity contest than a compatibility measure.
+  person_effect_calib: the same fit, on the calibrated score shortlist assignment actually ranks by. How much of person_effect_share survives mean-centering — lower means the correction is working; equal to person_effect_share only if there was nothing to correct. See headroom_ranking for what calibration cost in absolute compatibility.
   demand_max: the most different people who put the same person in their top-{target_shortlist} candidate list
   demand_zero: people nobody's top-{target_shortlist} candidate list includes, before the appearance cap or assignment even runs
   demand_gini: inequality of that same demand count across everyone; 0 = perfectly even, closer to 1 = a few people are everyone's favorite
@@ -133,6 +135,8 @@ QUALITY  is the output good?
   rank_regret_p95            1
   mutual_rate            70.7%
   headroom_ratio         99.4%
+  headroom_ranking       99.7%
+  headroom_assign        99.7%
   headroom_worst         75.0%
   headroom_p5            98.4%
   pair_score_stddev      0.035
@@ -164,8 +168,10 @@ QUALITY  is the output good?
   rank_regret_mean: extra candidates skipped per pick because higher-ranked options were at the appearance cap. 0 = every pick was the best still-available match; 2 = on average the cap forced 2 better candidates to be skipped before each pick. Larger means the cap is biting harder.
   rank_regret_p95: same skip-count, 95th percentile. A small mean with a large p95 means most picks were unblocked but a few people had popular candidates capped out and got pushed deep into their list.
   mutual_rate: fraction of shortlist entries where B is also on A's list; 100% = every match is mutual, low values mean many one-sided introductions
-  headroom_ratio: served score as a fraction of the best score the pool could have given everyone if the appearance cap and round-robin were perfect. Low values mean the assignment, not the pool, is costing quality — the fix is a better algorithm, not better data.
-  headroom_worst / headroom_p5: same ratio for the single worst-served person, and the 5th percentile; a healthy run keeps these close to headroom_ratio
+  headroom_ratio: served score as a fraction of the best score the pool could have given everyone with a perfect appearance cap and round-robin. Low values mean quality was left on the table; headroom_ranking and headroom_assign below split out whether calibration or the assignment cost it.
+  headroom_ranking: calibration's share of any headroom lost — the same top-N sum, picked in calibrated rank order vs. raw display order. 100% = calibration's re-ranking gave up no compatibility to be fairer. Below 100% means calibration swapped in a lower-display candidate for someone with more viable candidates than target_shortlist.
+  headroom_assign: the appearance cap/round-robin's share of any headroom lost, given calibration's ranking as the ideal. headroom_ratio == headroom_ranking * headroom_assign.
+  headroom_worst / headroom_p5: same ratio as headroom_ratio for the single worst-served person, and the 5th percentile; a healthy run keeps these close to headroom_ratio
   pair_score_stddev: spread of display scores across every scored pair; the yardstick the two gaps below are measured against
   top_gap_mean: average gap between a person's best and their target_shortlist-th best candidate; small means the top of everyone's list is nearly tied
   top_gap_in_sds: top_gap_mean divided by pair_score_stddev; below about 1, ranking within a shortlist is noise, and default random shortlist order is the honest choice
