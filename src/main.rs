@@ -8,6 +8,7 @@
 
 use anyhow::Result;
 use clap::{Parser, ValueEnum};
+use matchmaking::generate_docx;
 use matchmaking::parse_and_generate_matches;
 use std::{io::Write, path::PathBuf, process::Command};
 
@@ -23,7 +24,7 @@ struct Args {
     #[arg(short, long)]
     sort_shortlists_by_score: bool,
 
-    /// Print match score next to each match name
+    /// Print match score next to each match name. Only applies if output-format is plain-text.
     #[arg(short, long)]
     print_scores: bool,
 
@@ -50,7 +51,7 @@ struct Args {
     #[arg(long)]
     seed: Option<u64>,
 
-    /// If provided, the person with this id (email)'s shortlist is printed.
+    /// If provided, the person with this id (email)'s shortlist is printed to stdout.
     #[arg(long, value_name = "PERSON_ID")]
     debug_print_candidate_list: Option<String>,
 
@@ -61,11 +62,11 @@ struct Args {
 
 #[derive(Debug, Clone, ValueEnum)]
 enum OutputFormat {
-    /// Plaintext for checking results
+    /// Plaintext for checking results is printed to stdout
     PlainText,
-    /// Word document
+    /// Word document names matches.docx is created and opened
     DocX,
-    /// JSON document
+    /// JSON document is printed to stdout
     Json,
 }
 
@@ -89,10 +90,7 @@ fn main() -> Result<()> {
             std::io::stdout().lock().write_all(out.as_bytes())?;
         }
         OutputFormat::DocX => {
-            Command::new("node")
-                .arg("generate.js")
-                .arg(serde_json::to_string(&matches)?)
-                .output()?;
+            generate_docx(&matches)?;
 
             Command::new("open").arg("matches.docx").output()?;
         }

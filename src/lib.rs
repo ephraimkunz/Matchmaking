@@ -10,8 +10,11 @@ use rand::prelude::*;
 use wasm_bindgen::prelude::*;
 
 mod diagnostics;
+mod docx;
 mod matching;
 mod parsing;
+
+pub use docx::generate_docx;
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]

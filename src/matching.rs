@@ -19,7 +19,7 @@ use anyhow::Result;
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Matches {
     pub cards: Vec<MatchCard>,
-    print_scores: bool,
+    pub print_scores: bool,
 }
 
 impl Display for Matches {
@@ -28,9 +28,9 @@ impl Display for Matches {
             writeln!(f, "{} ({})\n\nMatches:", card.name, card.email)?;
             for (index, m) in card.shortlist.iter().enumerate() {
                 if self.print_scores {
-                    writeln!(f, "\t{} ({}) ({})", m.name, m.email, m.score)?;
+                    writeln!(f, "\t{} - {} ({}) ({})", m.name, m.age.0, m.email, m.score)?;
                 } else {
-                    writeln!(f, "\t{} ({})", m.name, m.email)?;
+                    writeln!(f, "\t{} - {} ({})", m.name, m.age.0, m.email)?;
                 }
 
                 for (k, v) in &m.freeresponse.responses {
@@ -54,17 +54,17 @@ impl Display for Matches {
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct MatchCard {
-    name: String,
+    pub name: String,
     pub email: String,
     pub shortlist: Vec<ShortlistMatch>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ShortlistMatch {
-    name: String,
-    age: Age,
+    pub name: String,
+    pub age: Age,
     pub email: String,
-    freeresponse: FreeResponse,
+    pub freeresponse: FreeResponse,
     pub score: f32,
 }
 
