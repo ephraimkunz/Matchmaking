@@ -55,7 +55,8 @@ fn generate_cards(
         .cards
         .iter()
         .map(|card| {
-            let cell = generate_table_cell();
+            let mut cell = generate_table_cell();
+            let mut paragraphs = Vec::with_capacity(22);
 
             let name_paragraph = Paragraph::new()
                 .line_spacing(LineSpacing::new().after(80).line(LINE_SPACING))
@@ -66,7 +67,7 @@ fn generate_cards(
                         .size(26)
                         .fonts(run_font.clone()),
                 );
-            let cell = cell.add_paragraph(name_paragraph);
+            paragraphs.push(TableCellContent::Paragraph(Box::new(name_paragraph)));
 
             let your_matches_paragraph = Paragraph::new()
                 .line_spacing(LineSpacing::new().after(100).line(LINE_SPACING))
@@ -86,11 +87,20 @@ fn generate_cards(
                         .color("444444")
                         .fonts(run_font.clone()),
                 );
-            let mut cell = cell.add_paragraph(your_matches_paragraph);
+            paragraphs.push(TableCellContent::Paragraph(Box::new(
+                your_matches_paragraph,
+            )));
 
-            for (i, item) in card.shortlist.iter().enumerate() {
-                generate_match_info(i, item, &mut cell, run_font, semi_bold_run_font);
-            }
+            let matches_paragraphs: Vec<_> = card
+                .shortlist
+                .iter()
+                .enumerate()
+                .flat_map(|(i, item)| generate_match_info(i, item, run_font, semi_bold_run_font))
+                .collect();
+
+            paragraphs.extend(matches_paragraphs);
+
+            cell.children = paragraphs;
 
             let row = TableRow::new(vec![cell]);
             Table::new(vec![row])
@@ -103,10 +113,10 @@ fn generate_cards(
 fn generate_match_info(
     index: usize,
     item: &ShortlistMatch,
-    cell: &mut TableCell,
     run_font: &RunFonts,
     semi_bold_run_font: &RunFonts,
-) {
+) -> Vec<TableCellContent> {
+    let mut paragraphs = Vec::with_capacity(4);
     let name_paragraph = Paragraph::new()
         .line_spacing(
             LineSpacing::new()
@@ -129,7 +139,7 @@ fn generate_match_info(
                 .fonts(run_font.clone()),
         );
 
-    *cell = cell.clone().add_paragraph(name_paragraph);
+    paragraphs.push(TableCellContent::Paragraph(Box::new(name_paragraph)));
 
     if item.freeresponse.responses.is_empty() {
         let no_responses_paragraph = Paragraph::new()
@@ -143,7 +153,10 @@ fn generate_match_info(
                     .color("888888")
                     .fonts(run_font.clone()),
             );
-        *cell = cell.clone().add_paragraph(no_responses_paragraph)
+
+        paragraphs.push(TableCellContent::Paragraph(Box::new(
+            no_responses_paragraph,
+        )));
     } else {
         for (prompt, response) in &item.freeresponse.responses {
             let prompt_and_response_paragraph = Paragraph::new()
@@ -161,9 +174,13 @@ fn generate_match_info(
                         .size(18)
                         .fonts(run_font.clone()),
                 );
-            *cell = cell.clone().add_paragraph(prompt_and_response_paragraph);
+            paragraphs.push(TableCellContent::Paragraph(Box::new(
+                prompt_and_response_paragraph,
+            )));
         }
     }
+
+    paragraphs
 }
 
 fn generate_table_cell() -> TableCell {
