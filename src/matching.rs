@@ -418,8 +418,8 @@ fn process_interests(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> (f
 }
 
 fn process_age(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> (f32, f32) {
-    // Similar ages are important, but not the most important.
-    const AGE_QUESTION_WEIGHT: f32 = 0.7;
+    // Similar ages are important.
+    const AGE_QUESTION_WEIGHT: f32 = 4.2;
 
     let diff = a.demographics.age.0.abs_diff(b.demographics.age.0);
     // Divide by 1 + the max spread to keep similarity > 0
@@ -1541,7 +1541,7 @@ mod tests {
                             age: Age(26),
                             email: "second".to_string(),
                             freeresponse: FreeResponse { responses: vec![] },
-                            score: 0.989_766_06
+                            score: 0.942_973_55
                         }]
                     },
                     MatchCard {
@@ -1552,7 +1552,7 @@ mod tests {
                             age: Age(34),
                             email: "first".to_string(),
                             freeresponse: FreeResponse { responses: vec![] },
-                            score: 0.989_766_06
+                            score: 0.942_973_55
                         }]
                     }
                 ],
