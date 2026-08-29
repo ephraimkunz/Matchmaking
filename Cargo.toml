@@ -9,12 +9,14 @@ clap = { version = "4", features = ["derive"] }
 csv = "1"
 docx-rs = { git = "https://github.com/ephraimkunz/docx-rs", branch = "ekunz-matchmaking-avoid-balanceSingleByteDoubleByteWidth" }
 itertools = "0.15"
-open = "5"
 rand = "0.10"
 regex = "1"
 rustc-hash = "2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+open = "5"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1"
