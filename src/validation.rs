@@ -1,6 +1,7 @@
 use anyhow::{Result, ensure};
 use itertools::Itertools;
 use regex::Regex;
+use rustc_hash::FxHashSet;
 use std::sync::LazyLock;
 
 static EMAIL_REGEX: LazyLock<Regex> = LazyLock::new(|| {
@@ -46,6 +47,36 @@ pub fn validated_free_response(response: &str) -> Option<String> {
     }
 }
 
+/// # Errors
+///
+/// Returns an error if `ids` has members that are not valid emails or not in `allowed_ids`.
+pub fn validate_ids<'a>(
+    ids: &[String],
+    allowed_ids: impl Iterator<Item = &'a str>,
+) -> Result<FxHashSet<String>> {
+    let ids: Result<Vec<_>> = ids.iter().map(|i| validated_email(i)).collect();
+    let ids = ids?;
+    let ids: FxHashSet<_> = ids.into_iter().collect();
+
+    let mut ids_not_seen = ids.clone();
+    for response_id in allowed_ids {
+        ids_not_seen.remove(response_id);
+    }
+
+    ensure!(
+        ids_not_seen.is_empty(),
+        "Id list contains non-existent id(s): {}",
+        ids_not_seen.iter().join(", ")
+    );
+
+    Ok(ids)
+}
+
+pub fn validate_id<'a>(id: &str, allowed_ids: impl Iterator<Item = &'a str>) -> Result<String> {
+    let ids = validate_ids(&[id.to_string()], allowed_ids)?;
+    Ok(ids.into_iter().next().unwrap())
+}
+
 fn capitalize(s: &str) -> String {
     let mut chars = s.chars();
     match chars.next() {
@@ -56,7 +87,7 @@ fn capitalize(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::parsing::validation::{validated_email, validated_free_response, validated_name};
+    use super::*;
 
     #[test]
     fn invalid_emails() {

@@ -917,8 +917,8 @@ mod tests {
     fn run_pipeline(collect_diagnostics: bool, seed: Option<u64>) -> (usize, Option<Diagnostics>) {
         let mut reader = csv::Reader::from_path(csv_path()).expect("test CSV should exist");
         let (mut rng, _) = rng_and_seed(None);
-        let responses =
-            crate::parsing::parse_responses(&mut reader, &mut rng).expect("test CSV should parse");
+        let responses = crate::parsing::parse_responses(&mut reader, &mut rng, &[])
+            .expect("test CSV should parse");
         let (mut rng, seed) = rng_and_seed(seed);
         let (_matches, diagnostics) = crate::matching::create_matches(
             &responses,
@@ -931,7 +931,8 @@ mod tests {
             TARGET_SHORTLIST,
             TARGET_SHORTLIST * 2 + 5,
             None,
-        );
+        )
+        .unwrap();
         (responses.len(), diagnostics)
     }
 

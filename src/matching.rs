@@ -13,8 +13,9 @@ use crate::parsing::{
 use crate::diagnostics::{
     DealbreakerCause, Diagnostics, PairsStats, ShortlistStats, build_diagnostics,
 };
+use crate::validation::validate_id;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Matches {
@@ -80,7 +81,7 @@ pub fn create_matches(
     max_appearances: usize,
     max_appearances_relaxed: usize,
     debug_print_candidate_list: Option<String>,
-) -> (Matches, Option<Diagnostics>) {
+) -> Result<(Matches, Option<Diagnostics>)> {
     // Score all pairs
     let (pairs, pairs_stats) = build_scored_pairs(responses, collect_diagnostics);
 
@@ -93,6 +94,8 @@ pub fn create_matches(
     let ranked_candidates = build_ranked_candidates(&ids, &pairs);
 
     if let Some(id) = debug_print_candidate_list {
+        let id = validate_id(&id, ids.iter().copied())
+            .with_context(|| "Failed to parse debug_print_candidate_list PERSON_ID")?;
         match ranked_candidates.get(id.as_str()) {
             Some(candidates) => eprintln!("{id}'s candidate_list{candidates:?}"),
             None => eprintln!("No participant with id \"{id}\" was found in the input."),
@@ -172,7 +175,7 @@ pub fn create_matches(
         rng_seed,
     );
 
-    (result, diagnostics)
+    Ok((result, diagnostics))
 }
 
 /// Returns Ok(()) if no dealbreakers, or Err with the first cause found.
@@ -1456,7 +1459,8 @@ mod tests {
     #[test]
     fn test_empty_create_matches() {
         let (mut rng, seed) = rng_and_seed(None);
-        let (matches, _) = create_matches(&[], &mut rng, seed, true, true, false, 5, 12, 14, None);
+        let (matches, _) =
+            create_matches(&[], &mut rng, seed, true, true, false, 5, 12, 14, None).unwrap();
         assert_eq!(
             matches,
             Matches {
@@ -1480,7 +1484,8 @@ mod tests {
             12,
             14,
             None,
-        );
+        )
+        .unwrap();
         assert_eq!(matches.cards.len(), 1);
         assert!(matches.cards[0].shortlist.is_empty());
         assert_eq!(
@@ -1488,7 +1493,7 @@ mod tests {
             Matches {
                 cards: vec![MatchCard {
                     name: String::new(),
-                    email: String::new(),
+                    email: "example@example.com".to_string(),
                     shortlist: vec![],
                 }],
                 print_scores: true
@@ -1528,7 +1533,8 @@ mod tests {
             12,
             14,
             None,
-        );
+        )
+        .unwrap();
         assert_eq!(
             matches,
             Matches {
@@ -1559,5 +1565,59 @@ mod tests {
                 print_scores: true
             }
         );
+    }
+
+    #[test]
+    fn test_invalid_debug_print_candidate_list() {
+        let (mut rng, seed) = rng_and_seed(None);
+        let result = create_matches(
+            &[QuestionnaireResponse::default()],
+            &mut rng,
+            seed,
+            true,
+            true,
+            false,
+            5,
+            12,
+            14,
+            Some("abc".to_string()),
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_non_existent_debug_print_candidate_list() {
+        let (mut rng, seed) = rng_and_seed(None);
+        let result = create_matches(
+            &[QuestionnaireResponse::default()],
+            &mut rng,
+            seed,
+            true,
+            true,
+            false,
+            5,
+            12,
+            14,
+            Some("ephraimkunz@example.com".to_string()),
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn text_good_debug_print_candidate_list() {
+        let (mut rng, seed) = rng_and_seed(None);
+        let result = create_matches(
+            &[QuestionnaireResponse::default()],
+            &mut rng,
+            seed,
+            true,
+            true,
+            false,
+            5,
+            12,
+            14,
+            Some("example@example.com".to_string()),
+        );
+        assert!(result.is_ok());
     }
 }
