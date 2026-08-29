@@ -18,11 +18,13 @@ use wasm_bindgen::prelude::*;
 
 mod diagnostics;
 mod docx;
+mod email;
 mod matching;
 mod parsing;
 mod validation;
 
 pub use docx::generate_docx;
+pub use email::generate_email;
 pub use matching::Matches;
 pub use validation::validate_ids;
 
@@ -51,7 +53,6 @@ pub fn generate_matches_from_csv_text(
         &mut rng,
         seed,
         sort_shortlists_by_score,
-        print_scores,
         collect_diagnostics,
         target_shortlist,
         max_appearances,
@@ -60,9 +61,10 @@ pub fn generate_matches_from_csv_text(
     )
     .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-    // Use Display impl you already have — no new serialization needed
     let output = MatchOutput {
-        matches_text: matches.to_string(),
+        matches_text: matches
+            .plaintext(print_scores)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?,
         diagnostics_text: diagnostics.map(|d| d.to_string()),
     };
 
@@ -85,7 +87,6 @@ pub fn parse_and_generate_matches(
     input_filename: PathBuf,
     rng_seed: Option<u64>,
     sort_shortlists_by_score: bool,
-    print_scores: bool,
     collect_diagnostics: bool,
     target_shortlist: usize,
     max_appearances: usize,
@@ -101,7 +102,6 @@ pub fn parse_and_generate_matches(
         &mut rng,
         seed,
         sort_shortlists_by_score,
-        print_scores,
         collect_diagnostics,
         target_shortlist,
         max_appearances,

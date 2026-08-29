@@ -1,0 +1,4 @@
+Hey {{name}},
+Here is your shortlist:
+{{shortlist}}
+Thanks for participating.

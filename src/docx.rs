@@ -60,7 +60,7 @@ fn generate_cards(
     semi_bold_run_font: &RunFonts,
 ) -> Vec<Table> {
     matches
-        .cards
+        .0
         .iter()
         .map(|card| {
             let mut cell = generate_table_cell();
@@ -277,38 +277,32 @@ mod tests {
 
     #[test]
     fn docx_generated() {
-        let matches = Matches {
-            cards: vec![
-                MatchCard {
-                    name: "Candidate A".to_string(),
-                    email: "first".to_string(),
-                    shortlist: vec![ShortlistMatch {
-                        name: "Candidate B".to_string(),
-                        age: Age(26),
-                        email: "second".to_string(),
-                        freeresponse: FreeResponse {
-                            responses: vec![(
-                                "Favorite hobby:".to_string(),
-                                "Beekeeping".to_string(),
-                            )],
-                        },
-                        score: 0.989_766_06,
-                    }],
-                },
-                MatchCard {
+        let matches = Matches(vec![
+            MatchCard {
+                name: "Candidate A".to_string(),
+                email: "first".to_string(),
+                shortlist: vec![ShortlistMatch {
                     name: "Candidate B".to_string(),
+                    age: Age(26),
                     email: "second".to_string(),
-                    shortlist: vec![ShortlistMatch {
-                        name: "Candidate A".to_string(),
-                        age: Age(34),
-                        email: "first".to_string(),
-                        freeresponse: FreeResponse { responses: vec![] },
-                        score: 0.989_766_06,
-                    }],
-                },
-            ],
-            print_scores: true,
-        };
+                    freeresponse: FreeResponse {
+                        responses: vec![("Favorite hobby:".to_string(), "Beekeeping".to_string())],
+                    },
+                    score: 0.989_766_06,
+                }],
+            },
+            MatchCard {
+                name: "Candidate B".to_string(),
+                email: "second".to_string(),
+                shortlist: vec![ShortlistMatch {
+                    name: "Candidate A".to_string(),
+                    age: Age(34),
+                    email: "first".to_string(),
+                    freeresponse: FreeResponse { responses: vec![] },
+                    score: 0.989_766_06,
+                }],
+            },
+        ]);
 
         let data = generate_docx_data(&matches);
         // Both cards land in one Section, since generate_section groups pairs of cards

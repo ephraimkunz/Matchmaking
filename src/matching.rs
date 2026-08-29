@@ -1,9 +1,8 @@
-use std::fmt::{Display, Formatter};
-
 use itertools::Itertools;
 use rand::prelude::*;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use serde::Serialize;
+use std::fmt::Write;
 
 use crate::parsing::{
     Age, FreeResponse, Gender, MarriageTimelineResponse, PartnersReligionResponse,
@@ -18,38 +17,31 @@ use crate::validation::validate_id;
 use anyhow::{Context, Result};
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct Matches {
-    pub cards: Vec<MatchCard>,
-    pub print_scores: bool,
-}
 
-impl Display for Matches {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        for card in &self.cards {
-            writeln!(f, "{} ({})\n\nMatches:", card.name, card.email)?;
+pub struct Matches(pub Vec<MatchCard>);
+
+impl Matches {
+    /// # Errors
+    ///
+    /// Returns errors if writeln! fails.
+    pub fn plaintext(&self, print_scores: bool) -> Result<String> {
+        let mut output = String::new();
+        for card in &self.0 {
+            writeln!(output, "{} ({})\n\nMatches:", card.name, card.email)?;
             for (index, m) in card.shortlist.iter().enumerate() {
-                if self.print_scores {
-                    writeln!(f, "\t{} - {} ({}) ({})", m.name, m.age.0, m.email, m.score)?;
-                } else {
-                    writeln!(f, "\t{} - {} ({})", m.name, m.age.0, m.email)?;
-                }
-
-                for (k, v) in &m.freeresponse.responses {
-                    writeln!(f, "\t{k} {v}")?;
-                }
+                write!(output, "{}", m.plaintext(print_scores)?)?;
 
                 if index < (card.shortlist.len() - 1) {
-                    writeln!(f)?;
+                    writeln!(output)?;
                 }
             }
 
             writeln!(
-                f,
+                output,
                 "\n========================================================================\n"
             )?;
         }
-
-        Ok(())
+        Ok(output)
     }
 }
 
@@ -69,13 +61,32 @@ pub struct ShortlistMatch {
     pub score: f32,
 }
 
+impl ShortlistMatch {
+    pub fn plaintext(&self, print_scores: bool) -> Result<String> {
+        let mut output = String::new();
+        if print_scores {
+            writeln!(
+                output,
+                "  {} - {} ({}) ({})",
+                self.name, self.age.0, self.email, self.score
+            )?;
+        } else {
+            writeln!(output, "  {} - {} ({})", self.name, self.age.0, self.email)?;
+        }
+
+        for (k, v) in &self.freeresponse.responses {
+            writeln!(output, "    {k} {v}")?;
+        }
+        Ok(output)
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn create_matches(
     responses: &[QuestionnaireResponse],
     rng: &mut StdRng,
     rng_seed: u64,
     sort_shortlists_by_score: bool,
-    print_scores: bool,
     collect_diagnostics: bool,
     target_shortlist: usize,
     max_appearances: usize,
@@ -159,10 +170,7 @@ pub fn create_matches(
 
     matches.sort_unstable_by(|a, b| a.name.cmp(&b.name));
 
-    let result = Matches {
-        cards: matches,
-        print_scores,
-    };
+    let result = Matches(matches);
 
     let diagnostics = build_diagnostics(
         pairs_stats,
@@ -1460,14 +1468,8 @@ mod tests {
     fn test_empty_create_matches() {
         let (mut rng, seed) = rng_and_seed(None);
         let (matches, _) =
-            create_matches(&[], &mut rng, seed, true, true, false, 5, 12, 14, None).unwrap();
-        assert_eq!(
-            matches,
-            Matches {
-                cards: vec![],
-                print_scores: true
-            }
-        );
+            create_matches(&[], &mut rng, seed, true, false, 5, 12, 14, None).unwrap();
+        assert_eq!(matches, Matches(vec![],));
     }
 
     #[test]
@@ -1478,7 +1480,6 @@ mod tests {
             &mut rng,
             seed,
             true,
-            true,
             false,
             5,
             12,
@@ -1486,18 +1487,15 @@ mod tests {
             None,
         )
         .unwrap();
-        assert_eq!(matches.cards.len(), 1);
-        assert!(matches.cards[0].shortlist.is_empty());
+        assert_eq!(matches.0.len(), 1);
+        assert!(matches.0[0].shortlist.is_empty());
         assert_eq!(
             matches,
-            Matches {
-                cards: vec![MatchCard {
-                    name: String::new(),
-                    email: "example@example.com".to_string(),
-                    shortlist: vec![],
-                }],
-                print_scores: true
-            }
+            Matches(vec![MatchCard {
+                name: String::new(),
+                email: "example@example.com".to_string(),
+                shortlist: vec![],
+            }],)
         );
     }
 
@@ -1527,7 +1525,6 @@ mod tests {
             &mut rng,
             seed,
             true,
-            true,
             false,
             5,
             12,
@@ -1537,33 +1534,30 @@ mod tests {
         .unwrap();
         assert_eq!(
             matches,
-            Matches {
-                cards: vec![
-                    MatchCard {
-                        name: "Candidate A".to_string(),
-                        email: "first".to_string(),
-                        shortlist: vec![ShortlistMatch {
-                            name: "Candidate B".to_string(),
-                            age: Age(26),
-                            email: "second".to_string(),
-                            freeresponse: FreeResponse { responses: vec![] },
-                            score: 0.942_973_55
-                        }]
-                    },
-                    MatchCard {
+            Matches(vec![
+                MatchCard {
+                    name: "Candidate A".to_string(),
+                    email: "first".to_string(),
+                    shortlist: vec![ShortlistMatch {
                         name: "Candidate B".to_string(),
+                        age: Age(26),
                         email: "second".to_string(),
-                        shortlist: vec![ShortlistMatch {
-                            name: "Candidate A".to_string(),
-                            age: Age(34),
-                            email: "first".to_string(),
-                            freeresponse: FreeResponse { responses: vec![] },
-                            score: 0.942_973_55
-                        }]
-                    }
-                ],
-                print_scores: true
-            }
+                        freeresponse: FreeResponse { responses: vec![] },
+                        score: 0.942_973_55
+                    }]
+                },
+                MatchCard {
+                    name: "Candidate B".to_string(),
+                    email: "second".to_string(),
+                    shortlist: vec![ShortlistMatch {
+                        name: "Candidate A".to_string(),
+                        age: Age(34),
+                        email: "first".to_string(),
+                        freeresponse: FreeResponse { responses: vec![] },
+                        score: 0.942_973_55
+                    }]
+                }
+            ],)
         );
     }
 
@@ -1574,7 +1568,6 @@ mod tests {
             &[QuestionnaireResponse::default()],
             &mut rng,
             seed,
-            true,
             true,
             false,
             5,
@@ -1593,7 +1586,6 @@ mod tests {
             &mut rng,
             seed,
             true,
-            true,
             false,
             5,
             12,
@@ -1610,7 +1602,6 @@ mod tests {
             &[QuestionnaireResponse::default()],
             &mut rng,
             seed,
-            true,
             true,
             false,
             5,

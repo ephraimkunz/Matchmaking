@@ -602,7 +602,7 @@ pub fn build_diagnostics(
     // Convergence: exact histogram of shortlist lengths (index = length, value = # people).
     // Lengths are bounded to [0, target_shortlist] since the loop never over-fills.
     let mut shortlist_len_histogram = vec![0usize; target_shortlist + 1];
-    for card in &result.cards {
+    for card in &result.0 {
         let len = card.shortlist.len().min(target_shortlist);
         shortlist_len_histogram[len] += 1;
     }
@@ -635,7 +635,7 @@ pub fn build_diagnostics(
     // chart keeps full resolution no matter where the scores cluster.
     let mut histogram = [0usize; HISTOGRAM_BUCKETS];
     let served_scores: Vec<f32> = result
-        .cards
+        .0
         .iter()
         .flat_map(|c| c.shortlist.iter().map(|m| m.score))
         .collect();
@@ -668,7 +668,7 @@ pub fn build_diagnostics(
     let mut max_possible_entries = 0usize;
     let mut pool_limited_short = 0usize;
     let mut algorithm_limited_short = 0usize;
-    for card in &result.cards {
+    for card in &result.0 {
         let candidate_count = ranked_candidates
             .get(card.email.as_str())
             .map_or(0, Vec::len);
@@ -705,7 +705,7 @@ pub fn build_diagnostics(
     // Mutuality: for every (A -> B) entry in all shortlists, check whether B's shortlist
     // also contains A.
     let shortlist_index: FxHashMap<&str, FxHashSet<&str>> = result
-        .cards
+        .0
         .iter()
         .map(|card| {
             let members: FxHashSet<&str> =
@@ -714,7 +714,7 @@ pub fn build_diagnostics(
         })
         .collect();
     let mutual_entries: usize = result
-        .cards
+        .0
         .iter()
         .flat_map(|card| {
             card.shortlist.iter().map(|m| {
@@ -755,7 +755,7 @@ pub fn build_diagnostics(
     let mut ideal_total = 0.0f32;
     let mut rank_ideal_total = 0.0f32;
     let mut headroom_ratios: Vec<f32> = Vec::with_capacity(total_participants);
-    for card in &result.cards {
+    for card in &result.0 {
         let served_sum: f32 = card.shortlist.iter().map(|m| m.score).sum();
         let ideal_sum: f32 = sorted_display
             .get(card.email.as_str())
@@ -924,7 +924,6 @@ mod tests {
             &responses,
             &mut rng,
             seed,
-            false,
             false,
             collect_diagnostics,
             TARGET_SHORTLIST,

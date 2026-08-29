@@ -9,16 +9,18 @@
 #![deny(clippy::print_stderr)]
 
 use anyhow::{Context, Result};
-use clap::{Parser, ValueEnum};
+use clap::{CommandFactory, Parser, ValueEnum};
 use itertools::Itertools;
 use matchmaking::Matches;
 use matchmaking::generate_docx;
+use matchmaking::generate_email;
 use matchmaking::parse_and_generate_matches;
 use matchmaking::validate_ids;
 use std::io::Write;
 use std::path::PathBuf;
 
 /// Generate shortlists of compatible dating partners, based on input dating questionnaire.
+#[allow(clippy::doc_markdown)]
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
@@ -30,7 +32,7 @@ struct Args {
     #[arg(short, long)]
     sort_shortlists_by_score: bool,
 
-    /// Print match score next to each match name. Only applies if output-format is plain-text.
+    /// Print match score next to each match name. Only applies if output-format is plain-text. Invalid if output-format is anything else.s
     #[arg(short, long)]
     print_scores: bool,
 
@@ -57,7 +59,7 @@ struct Args {
     #[arg(long)]
     seed: Option<u64>,
 
-    /// If provided, the person with this id (email)'s candidate list is printed to stdout.
+    /// If provided, the person with this id (email)'s candidate list is printed to stderr.
     #[arg(long, value_name = "PERSON_ID")]
     debug_print_candidate_list: Option<String>,
 
@@ -75,6 +77,11 @@ struct Args {
     /// few ids on some.
     #[arg(long, default_values_t = Vec::<String>::new(), num_args(1..))]
     output_ids: Vec<String>,
+
+    /// Path to a template file used to generate emails. Required if output-format is email, invalid if output-format is anything else.
+    /// Template placeholders supported: {{name}}, {{shortlist}}, {{personal_match_count}}, {{total_match_count}}
+    #[arg(long, value_name = "TEMPLATE_PATH")]
+    email_template: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, ValueEnum)]
@@ -85,10 +92,52 @@ enum OutputFormat {
     DocX,
     /// JSON document is printed to stdout
     Json,
+    /// Emails are generated from a template file, printed to stdout
+    Email,
+}
+
+impl Args {
+    fn validate(&self) -> clap::error::Result<()> {
+        let mut cmd = Args::command();
+
+        if self.print_scores && !matches!(self.output_format, OutputFormat::PlainText) {
+            return Err(cmd.error(
+                clap::error::ErrorKind::ArgumentConflict,
+                "--print-scores (-p) can only be used with --output-format=plain-text",
+            ));
+        }
+
+        if let Some(template) = &self.email_template {
+            if !matches!(self.output_format, OutputFormat::Email) {
+                return Err(cmd.error(
+                    clap::error::ErrorKind::ArgumentConflict,
+                    "--email-template can only be used with --output-format=email",
+                ));
+            }
+            if !template.exists() {
+                return Err(cmd.error(
+                    clap::error::ErrorKind::InvalidValue,
+                    format!("template file not found: {}", template.display()),
+                ));
+            }
+        }
+
+        if matches!(self.output_format, OutputFormat::Email) && self.email_template.is_none() {
+            return Err(cmd.error(
+                clap::error::ErrorKind::MissingRequiredArgument,
+                "--output-format=email requires --email-template <PATH>",
+            ));
+        }
+
+        Ok(())
+    }
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    if let Err(e) = args.validate() {
+        e.exit();
+    }
     run(args, &mut std::io::stdout(), &mut std::io::stderr())
 }
 
@@ -97,7 +146,6 @@ fn run<W1: Write, W2: Write>(args: Args, stdout: &mut W1, stderr: &mut W2) -> Re
         args.input_file_name,
         args.seed,
         args.sort_shortlists_by_score,
-        args.print_scores,
         args.diagnostics,
         args.target_shortlist,
         args.max_appearances,
@@ -106,14 +154,11 @@ fn run<W1: Write, W2: Write>(args: Args, stdout: &mut W1, stderr: &mut W2) -> Re
         &args.excluded_ids,
     )?;
 
-    let output_ids = validate_ids(
-        &args.output_ids,
-        matches.cards.iter().map(|c| c.email.as_str()),
-    )
-    .with_context(|| "Failed to parse output_ids")?;
+    let output_ids = validate_ids(&args.output_ids, matches.0.iter().map(|c| c.email.as_str()))
+        .with_context(|| "Failed to parse output_ids")?;
 
     let filtered_cards = matches
-        .cards
+        .0
         .into_iter()
         .filter(|c| {
             if output_ids.is_empty() {
@@ -123,14 +168,11 @@ fn run<W1: Write, W2: Write>(args: Args, stdout: &mut W1, stderr: &mut W2) -> Re
             }
         })
         .collect_vec();
-    let matches = Matches {
-        cards: filtered_cards,
-        ..matches
-    };
+    let matches = Matches(filtered_cards);
 
     match args.output_format {
         OutputFormat::PlainText => {
-            let out = matches.to_string();
+            let out = matches.plaintext(args.print_scores)?;
             write!(stdout, "{out}")?;
         }
         OutputFormat::DocX => {
@@ -138,6 +180,7 @@ fn run<W1: Write, W2: Write>(args: Args, stdout: &mut W1, stderr: &mut W2) -> Re
             open::that(path)?;
         }
         OutputFormat::Json => write!(stdout, "{}", serde_json::to_string_pretty(&matches)?)?,
+        OutputFormat::Email => generate_email(&matches, args.email_template, stdout)?,
     }
 
     if let Some(diag) = diagnostics {
@@ -278,5 +321,84 @@ mod tests {
         let mut stderr = vec![];
         let result = run(args, &mut stdout, &mut stderr);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn args_validate_print_when_plain() {
+        let input = [
+            "matchmaking",
+            "test_data/many_generated.csv",
+            "-o",
+            "plain-text",
+            "-p",
+        ];
+        let args = Args::try_parse_from(input).unwrap();
+        assert!(args.validate().is_ok());
+    }
+
+    #[test]
+    fn args_validate_print_when_not_plaintext() {
+        for output in ["doc-x", "email", "json"] {
+            let input = [
+                "matchmaking",
+                "test_data/many_generated.csv",
+                "-o",
+                output,
+                "-p",
+            ];
+            let args = Args::try_parse_from(input).unwrap();
+            assert!(args.validate().is_err());
+        }
+    }
+
+    #[test]
+    fn args_validate_email_template_email_output() {
+        let input = [
+            "matchmaking",
+            "test_data/many_generated.csv",
+            "-o",
+            "email",
+            "--email-template",
+            "./test_data/test_email_template.txt",
+        ];
+        let args = Args::try_parse_from(input).unwrap();
+        assert!(args.validate().is_ok());
+    }
+
+    #[test]
+    fn args_validate_email_template_no_email_output() {
+        for output in ["doc-x", "plain-text", "json"] {
+            let input = [
+                "matchmaking",
+                "test_data/many_generated.csv",
+                "-o",
+                output,
+                "--email-template",
+                "./test_data/test_email_template.txt",
+            ];
+            let args = Args::try_parse_from(input).unwrap();
+            assert!(args.validate().is_err());
+        }
+    }
+
+    #[test]
+    fn args_validate_email_template_no_file() {
+        let input = [
+            "matchmaking",
+            "test_data/many_generated.csv",
+            "-o",
+            "email",
+            "--email-template",
+            "./test_data/does_not_exist.txt",
+        ];
+        let args = Args::try_parse_from(input).unwrap();
+        assert!(args.validate().is_err());
+    }
+
+    #[test]
+    fn args_validate_email_output_no_email_template() {
+        let input = ["matchmaking", "test_data/many_generated.csv", "-o", "email"];
+        let args = Args::try_parse_from(input).unwrap();
+        assert!(args.validate().is_err());
     }
 }
