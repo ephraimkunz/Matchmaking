@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::{Parser, ValueEnum};
 use matchmaking::generate_docx;
 use matchmaking::parse_and_generate_matches;
-use std::{io::Write, path::PathBuf, process::Command};
+use std::{io::Write, path::PathBuf};
 
 /// Generate shortlists of compatible dating partners, based on input dating questionnaire.
 #[derive(Parser, Debug)]
@@ -82,8 +82,8 @@ fn main() -> Result<()> {
             std::io::stdout().lock().write_all(out.as_bytes())?;
         }
         OutputFormat::DocX => {
-            generate_docx(&matches)?;
-            open_generated_file(std::path::Path::new("matches.docx"));
+            let path = generate_docx(&matches)?;
+            open::that(path)?;
         }
         OutputFormat::Json => print!("{}", serde_json::to_string_pretty(&matches)?),
     }
@@ -92,28 +92,6 @@ fn main() -> Result<()> {
         write!(std::io::stderr().lock(), "{diag}")?;
     }
     Ok(())
-}
-
-/// Best-effort: open `path` with the platform's default handler. The file has already
-/// been written successfully by the time this is called, so a missing/failing launcher
-/// (e.g. no `xdg-open` in a minimal container) is reported but never fails the run.
-fn open_generated_file(path: &std::path::Path) {
-    #[cfg(target_os = "macos")]
-    let result = Command::new("open").arg(path).status();
-    #[cfg(target_os = "windows")]
-    let result = Command::new("cmd")
-        .args(["/C", "start", ""])
-        .arg(path)
-        .status();
-    #[cfg(all(unix, not(target_os = "macos")))]
-    let result = Command::new("xdg-open").arg(path).status();
-
-    if let Err(e) = result {
-        eprintln!(
-            "Generated {} but couldn't open it automatically: {e}",
-            path.display()
-        );
-    }
 }
 
 #[cfg(test)]

@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use crate::matching::{Matches, ShortlistMatch};
 #[allow(clippy::wildcard_imports)] // docx-rs's builder API is meant to be used this way
 use docx_rs::*;
@@ -19,10 +21,11 @@ const LINE_SPACING: i32 = 240;
 ///
 /// Returns an error if `./matches.docx` can't be created or written (e.g. permissions,
 /// disk full).
-pub fn generate_docx(matches: &Matches) -> anyhow::Result<()> {
-    let file = std::fs::File::create("./matches.docx")?;
+pub fn generate_docx(matches: &Matches) -> anyhow::Result<PathBuf> {
+    let path = Path::new("./matches.docx").to_path_buf();
+    let file = std::fs::File::create(&path)?;
     generate_docx_data(matches).pack(file)?;
-    Ok(())
+    Ok(path)
 }
 
 fn generate_docx_data(matches: &Matches) -> Docx {
