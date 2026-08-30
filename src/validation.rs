@@ -145,4 +145,40 @@ mod tests {
             "This is a test"
         );
     }
+
+    #[test]
+    fn invalid_ids() {
+        assert!(
+            validate_ids(
+                &["abc".to_string(), "def".to_string()],
+                ["abc", "def"].iter().copied()
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn in_sets_ids() {
+        assert_eq!(
+            validate_ids(
+                &["B@example.com ".to_string(), "  a@example.com".to_string()],
+                ["a@example.com", "b@example.com"].iter().copied()
+            )
+            .unwrap(),
+            ["a@example.com".to_string(), "b@example.com".to_string()]
+                .into_iter()
+                .collect()
+        );
+    }
+
+    #[test]
+    fn not_in_sets_ids() {
+        assert!(
+            validate_ids(
+                &["B@example.com ".to_string(), "  c@example.com".to_string()],
+                ["a@example.com", "b@example.com"].iter().copied()
+            )
+            .is_err()
+        );
+    }
 }
