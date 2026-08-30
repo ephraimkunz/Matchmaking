@@ -11,6 +11,7 @@ use crate::Matches;
 pub fn generate_email<W: Write>(
     matches: &Matches,
     template_path: Option<PathBuf>,
+    total_match_count: usize,
     stdout: &mut W,
 ) -> Result<()> {
     // template_path was validated as always being present if we got here in Args::validate.
@@ -27,7 +28,7 @@ pub fn generate_email<W: Write>(
             card.name.split_whitespace().next().unwrap_or(&card.name),
         );
 
-        let template = template.replace("{{total_match_count}}", &format!("{}", matches.0.len()));
+        let template = template.replace("{{total_match_count}}", &format!("{total_match_count}"));
 
         let template = template.replace(
             "{{personal_match_count_title}}",
@@ -82,6 +83,7 @@ mod tests {
             generate_email(
                 &Matches(vec![]),
                 Some(Path::new("./test_data/test_email_template.txt").to_path_buf()),
+                0,
                 &mut stdout
             )
             .is_ok()

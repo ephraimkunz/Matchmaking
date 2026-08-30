@@ -74,8 +74,12 @@ impl ShortlistMatch {
             writeln!(output, "  {} - {} ({})", self.name, self.age.0, self.email)?;
         }
 
-        for (k, v) in &self.freeresponse.responses {
-            writeln!(output, "    {k} {v}")?;
+        if self.freeresponse.responses.is_empty() {
+            writeln!(output, "    (no profile answers on file)")?;
+        } else {
+            for (k, v) in &self.freeresponse.responses {
+                writeln!(output, "    {k} {v}")?;
+            }
         }
         Ok(output)
     }

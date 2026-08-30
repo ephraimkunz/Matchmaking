@@ -69,7 +69,7 @@ struct Args {
 
     /// Ids (emails) to exclude during parsing. Any id provided here is as if it was never in the input to begin with.
     /// This is helpful when people live far away and you plan to run multiple matching rounds and want to exclude on some.
-    #[arg(long, default_values_t = Vec::<String>::new())]
+    #[arg(long, default_values_t = Vec::<String>::new(), num_args(1..))]
     excluded_ids: Vec<String>,
 
     /// Ids (emails) to output. If empty, all non-excluded ids are output. If present, only the provided ids are output.
@@ -157,6 +157,9 @@ fn run<W1: Write, W2: Write>(args: Args, stdout: &mut W1, stderr: &mut W2) -> Re
     let output_ids = validate_ids(&args.output_ids, matches.0.iter().map(|c| c.email.as_str()))
         .with_context(|| "Failed to parse output_ids")?;
 
+    // Grab this before filtering, since we want to pass it for display even if we filter out to only display output_ids.
+    let total_match_count = matches.0.len();
+
     let filtered_cards = matches
         .0
         .into_iter()
@@ -180,7 +183,9 @@ fn run<W1: Write, W2: Write>(args: Args, stdout: &mut W1, stderr: &mut W2) -> Re
             open::that(path)?;
         }
         OutputFormat::Json => write!(stdout, "{}", serde_json::to_string_pretty(&matches)?)?,
-        OutputFormat::Email => generate_email(&matches, args.email_template, stdout)?,
+        OutputFormat::Email => {
+            generate_email(&matches, args.email_template, total_match_count, stdout)?;
+        }
     }
 
     if let Some(diag) = diagnostics {
@@ -400,5 +405,25 @@ mod tests {
         let input = ["matchmaking", "test_data/many_generated.csv", "-o", "email"];
         let args = Args::try_parse_from(input).unwrap();
         assert!(args.validate().is_err());
+    }
+
+    #[test]
+    fn excluded_ids() {
+        let input = [
+            "matchmaking",
+            "test_data/many_generated.csv",
+            "--seed",
+            "1",
+            "--excluded-ids",
+            "aurora.green@example.com",
+            "spencer.morris@example.com",
+        ];
+        let args = Args::try_parse_from(input).unwrap();
+        let mut stdout = vec![];
+        let mut stderr = vec![];
+        assert!(run(args, &mut stdout, &mut stderr).is_ok());
+
+        assert!(!stdout.is_empty());
+        assert!(stderr.is_empty());
     }
 }
