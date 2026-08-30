@@ -21,15 +21,15 @@ pub struct Diagnostics {
     /// people score well, or poorly, with almost everyone) rather than genuine
     /// pair-specific compatibility. A property of the raw scoring, not of any one run.
     pub person_effect_share: f32,
-    /// Same fit as `person_effect_share`, but on the calibrated rank score instead of
+    /// Same idea as `person_effect_share`, but on the calibrated rank score instead of
     /// the display score — how much of the person effect survives the mean-centering
     /// shortlist assignment applies. Lower than `person_effect_share` whenever
-    /// calibration is doing its job; equal only if there was nothing to blunt.
+    /// calibration is doing its job; equal only if we couldn't remove any of that effect.
     pub person_effect_share_calibrated: f32,
-    /// The most different subjects' top-`target_shortlist` *candidate* lists (by rank
+    /// The most different subjects' top-`target_shortlist` candidate lists (by rank
     /// score) any single person appears on.
     pub demand_max: usize,
-    /// People who appear on nobody's top-`target_shortlist` candidate list.
+    /// Number of people who appear on nobody's top-`target_shortlist` candidate list.
     pub demand_zero: usize,
     /// Gini coefficient of "how many different top-`target_shortlist` candidate lists
     /// each person appears on". 0 = every person is equally in-demand.
@@ -213,11 +213,11 @@ impl Display for Diagnostics {
         )?;
         writeln!(
             f,
-            "  person_effect_share: how much of the score spread is one person's own answers and importance weights scoring them high or low against nearly everyone, rather than genuine pair fit. It's a property of the scoring math, not a literal rating — nobody rates anyone directly. High means the scoring is closer to a popularity contest than a compatibility measure."
+            "  person_effect_share: how much of the scoring is one person's own answers and importance weights scoring them high or low against nearly everyone, rather than genuine pair fit. High means the scoring is closer to a popularity contest than a compatibility measure."
         )?;
         writeln!(
             f,
-            "  person_effect_calib: the same fit, on the calibrated score shortlist assignment actually ranks by. How much of person_effect_share survives mean-centering — lower means the correction is working; equal to person_effect_share only if there was nothing to correct. See headroom_ranking for what calibration cost in absolute compatibility."
+            "  person_effect_calib: the same idea as person_effect_share, on the calibrated score shortlist that the assignment algorithm actually ranks by. Denotes how much of person_effect_share survives mean-centering — lower means the correction is working; equal to person_effect_share only if there was nothing to correct. See headroom_ranking for what calibration cost in absolute compatibility."
         )?;
         writeln!(
             f,
@@ -320,7 +320,7 @@ impl Display for Diagnostics {
         )?;
         writeln!(
             f,
-            "  algo_limited_short: people whose shortlist is short despite having enough viable candidates; the reason is the appearance cap, not the pool. Zero with a generous cap; a nonzero count under a tight cap can be an honest capacity trade-off, not necessarily a bug — cross-check cap_relaxed and appearance_max, and consider raising --max-appearances-relaxed"
+            "  algo_limited_short: people whose shortlist is short despite having enough viable candidates; the reason is the appearance cap, not the pool. Will be zero if there is a generous cap; a nonzero count under a tight cap can be a good capacity trade-off. Cross-check cap_relaxed and appearance_max, and consider raising --max-appearances-relaxed"
         )?;
         writeln!(
             f,
@@ -431,11 +431,11 @@ impl Display for Diagnostics {
         )?;
         writeln!(
             f,
-            "  headroom_ratio: served score as a fraction of the best score the pool could have given everyone with a perfect appearance cap and round-robin. Low values mean quality was left on the table; headroom_ranking and headroom_assign below split out whether calibration or the assignment cost it."
+            "  headroom_ratio: served score as a fraction of the best score the pool could have given everyone with a perfect appearance cap and round-robin. Low values mean quality was left on the table; headroom_ranking and headroom_assign below split out whether the calibration or the assignment kept this lower than 100%."
         )?;
         writeln!(
             f,
-            "  headroom_ranking: calibration's share of any headroom lost — the same top-N sum, picked in calibrated rank order vs. raw display order. 100% = calibration's re-ranking gave up no compatibility to be fairer. Below 100% means calibration swapped in a lower-display candidate for someone with more viable candidates than target_shortlist."
+            "  headroom_ranking: The share of any headroom lost due to calibration — the same top-N sum, picked in calibrated rank order instead of raw display order. 100% = calibration's re-ranking gave up no compatibility to be fairer. Below 100% means calibration swapped in a lower-display-score candidate for in favor of helping those with bad person-effects."
         )?;
         writeln!(
             f,
@@ -455,7 +455,7 @@ impl Display for Diagnostics {
         )?;
         writeln!(
             f,
-            "  top_gap_in_sds: top_gap_mean divided by pair_score_stddev; below about 1, ranking within a shortlist is noise, and default random shortlist order is the honest choice"
+            "  top_gap_in_sds: top_gap_mean divided by pair_score_stddev; below about 1, ranking within a shortlist is noise, and default random shortlist order is the best choice"
         )?;
         writeln!(
             f,
@@ -903,7 +903,7 @@ pub fn build_diagnostics(
 }
 
 #[cfg(test)]
-#[allow(clippy::float_cmp)] // exact comparisons against deterministic, hand-computed values
+#[allow(clippy::float_cmp)]
 mod tests {
     use super::*;
     use crate::rng_and_seed;

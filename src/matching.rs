@@ -444,9 +444,7 @@ fn process_age(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> (f32, f3
 /// respondent picks a point on the trait axis, so `1 - |want - have|` is the right
 /// similarity measure. The rest use an importance scale ("...in a partner matters",
 /// 1 = not at all), where wanting less of a trait must not penalize a partner who has
-/// more of it — see `crossmatch_similarity`. Indices line up with
-/// `PartnerPreferences::crossmatched` / `SelfDescription::crossmatched`
-/// (parsing.rs's `crossmatched_indices` arrays).
+/// more of it. Indices line up with `PartnerPreferences::crossmatched` / `SelfDescription::crossmatched`.
 const CROSSMATCH_IS_BIPOLAR: [bool; 8] = [
     true,  // 0 plans carefully            <-> prefers a planner vs. go-with-the-flow
     false, // 1 artistic side               <-> artistic side matters
@@ -523,19 +521,7 @@ fn process_self_and_partner(a: &QuestionnaireResponse, b: &QuestionnaireResponse
     (total, weight_sum)
 }
 
-/// Calculate how well b satisfies a's preferences. Not symmetric. Only used by tests;
-/// `build_scored_pairs` calls `directional_score_with_scale` directly so it can compute
-/// each person's scale factor once instead of on every call.
-#[cfg(test)]
-fn directional_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f32 {
-    let subject_chosen_weight_scale_factor = calculate_subject_chosen_weight_scale_factor(a);
-    directional_score_with_scale(a, b, subject_chosen_weight_scale_factor)
-}
-
-/// Same as `directional_score`, but takes `a`'s weight-scale factor instead of
-/// recomputing it. The factor depends only on `a`, so a caller scoring `a` against many
-/// candidates (`build_scored_pairs`) can compute it once and reuse it here, rather than
-/// recomputing it for every candidate.
+/// Calculate how well b satisfies a's preferences. Not symmetric.
 fn directional_score_with_scale(
     a: &QuestionnaireResponse,
     b: &QuestionnaireResponse,
@@ -590,18 +576,10 @@ fn combine(ab: f32, ba: f32) -> f32 {
     (0.8 * min_score) + (0.2 * average)
 }
 
-/// Calculated the mutual score of a and b in a non-directional way, so that a's compatibility
-/// with b and b's compatibility with a are both contained in a single score. Only used by
-/// tests, as the reference formula `build_scored_pairs`'s calibrated scoring is built on.
-#[cfg(test)]
-fn mutual_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f32 {
-    combine(directional_score(a, b), directional_score(b, a))
-}
-
 /// The two numbers a scored pair carries. Kept separate because they answer different
 /// questions: `display` is the true mutual compatibility shown to participants and used
 /// in the QUALITY diagnostics; `rank` is only used to order candidates during shortlist
-/// assignment (see `build_scored_pairs` for why they can differ).
+/// assignment.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct PairScore {
     pub display: f32,
@@ -692,28 +670,11 @@ fn build_scored_pairs(
         }
     }
 
-    // A person's own mean directional score toward their candidates. Nobody rates anyone
-    // directly here — this score comes entirely from comparing a person's own answers,
-    // preferences, and self-assigned importance weights against each candidate's answers.
-    // But that means some people's own answers structurally score higher or lower against
-    // nearly everyone: narrow partner preferences score low against most of the pool,
-    // answers near the pool's center score higher, independent of fit with any specific
+    // A person's own mean directional score toward their candidates. Some people's own answers structurally score higher or lower against
+    // nearly everyone, independent of fit with any specific
     // candidate. Subtracting this baseline before combining keeps that structural effect
     // out of who ranks above whom, without touching the display score participants see.
-    //
-    // Why this can't lose real signal: subtracting a constant from both of a person's
-    // directional scores cannot reorder their own candidate list — it only shifts which
-    // side binds the min() inside `combine`. Before centering, someone with narrow
-    // preferences scored low against everyone, so their side always bound the min, so
-    // every pair containing them looked bad regardless of who the candidate was — they
-    // got buried on every list. Centering makes that min compare "who's getting the
-    // worse deal by their own standards" instead of "whose absolute number is smaller",
-    // without overriding anyone's actual stated preferences.
-    //
-    // This only corrects a person's own outgoing tendency, not how much they're wanted by
-    // others in return, so it blunts `person_effect_share` rather than eliminating it —
-    // see `person_effect_share_calibrated` and `headroom_ranking` in diagnostics.rs for
-    // how much it actually blunts, measured on real data. A person with fewer than 2
+    // A person with fewer than 2
     // candidates has no meaningful average to subtract, so calibration is a no-op for
     // them.
     let mean_outgoing = |id: &str| match outgoing_count.get(id) {
@@ -918,19 +879,25 @@ fn next_available<'a>(
 }
 
 #[cfg(test)]
-#[allow(clippy::float_cmp)] // exact comparisons against deterministic, hand-computed values
+#[allow(clippy::float_cmp)]
 mod tests {
     use crate::parsing::{Dealbreakers, Demographics, FourChoiceResponse, MyReligiousCommitment};
     use crate::rng_and_seed;
 
     use super::*;
 
+    fn mutual_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f32 {
+        combine(directional_score(a, b), directional_score(b, a))
+    }
+
+    fn directional_score(a: &QuestionnaireResponse, b: &QuestionnaireResponse) -> f32 {
+        let subject_chosen_weight_scale_factor = calculate_subject_chosen_weight_scale_factor(a);
+        directional_score_with_scale(a, b, subject_chosen_weight_scale_factor)
+    }
+
     #[test]
     fn crossmatch_similarity_shortfall_only_for_importance_scale() {
         let normalized = |v: u8| FourChoiceResponse(v).normalized();
-        // Importance scale (is_bipolar = false): indifference is always satisfied;
-        // wanting more of a trait than a partner has costs the shortfall, but wanting
-        // less than the partner has is never a mismatch.
         assert_eq!(
             crossmatch_similarity(false, normalized(1), normalized(4)),
             1.0
@@ -1026,9 +993,7 @@ mod tests {
         // strongly, but every male defaults to not having any of them. That shortfall
         // drags f_narrow's own directional score toward every male down uniformly — a
         // structural, answer-driven person effect, not a reflection of fit with any
-        // specific candidate. (Non-bipolar, so indifference — the default "want" — is
-        // always satisfied regardless of what a candidate "has"; only f_narrow's own
-        // non-default wants create a shortfall here, and only on her own outgoing side.)
+        // specific candidate.
         f_narrow.partnerpreferences.crossmatched[1] = FourChoiceResponse(4);
         f_narrow.partnerpreferences.crossmatched[4] = FourChoiceResponse(4);
         f_narrow.partnerpreferences.crossmatched[5] = FourChoiceResponse(4);
@@ -1048,8 +1013,7 @@ mod tests {
             *pairs.get(&(m.id(), f.id())).expect("pair should be scored")
         };
 
-        // Regression guard: calibration must never change the display score. Check it
-        // against an independently-computed value, not just against itself.
+        // Regression guard: calibration must never change the display score.
         for (m, f) in [
             (&m1, &f_narrow),
             (&m1, &f_typical),

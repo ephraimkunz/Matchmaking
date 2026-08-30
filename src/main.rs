@@ -32,7 +32,7 @@ struct Args {
     #[arg(short, long)]
     sort_shortlists_by_score: bool,
 
-    /// Print match score next to each match name. Only applies if output-format is plain-text. Invalid if output-format is anything else.s
+    /// Print match score next to each match name. Only applies if output-format is plain-text. Invalid if output-format is anything else.
     #[arg(short, long)]
     print_scores: bool,
 

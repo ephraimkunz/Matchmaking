@@ -715,7 +715,7 @@ fn parse_freeresponse<'i>(
 }
 
 #[cfg(test)]
-#[allow(clippy::float_cmp)] // exact comparisons against deterministic, hand-computed values
+#[allow(clippy::float_cmp)]
 mod tests {
     use std::path::Path;
 
