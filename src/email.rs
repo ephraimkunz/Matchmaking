@@ -1,6 +1,7 @@
 use std::{io::Write, path::PathBuf};
 
 use anyhow::{Context, Result, anyhow};
+use english_numbers::Formatting;
 
 use crate::Matches;
 
@@ -29,8 +30,13 @@ pub fn generate_email<W: Write>(
         let template = template.replace("{{total_match_count}}", &format!("{}", matches.0.len()));
 
         let template = template.replace(
-            "{{personal_match_count}}",
-            &format!("{}", card.shortlist.len()),
+            "{{personal_match_count_title}}",
+            &formatted_number(card.shortlist.len(), true),
+        );
+
+        let template = template.replace(
+            "{{personal_match_count_body}}",
+            &formatted_number(card.shortlist.len(), false),
         );
 
         let mut shortlist_bytes = vec![];
@@ -48,6 +54,19 @@ pub fn generate_email<W: Write>(
     }
 
     Ok(())
+}
+
+fn formatted_number(n: usize, capitalized: bool) -> String {
+    // Numbers 0-9 spelled out, 10+ digits only
+    if let Ok(n) = i64::try_from(n)
+        && n < 10
+    {
+        let mut formatting = Formatting::all();
+        formatting.title_case = capitalized;
+        english_numbers::convert(n, formatting)
+    } else {
+        format!("{n}")
+    }
 }
 
 #[cfg(test)]

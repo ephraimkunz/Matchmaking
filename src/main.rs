@@ -79,7 +79,7 @@ struct Args {
     output_ids: Vec<String>,
 
     /// Path to a template file used to generate emails. Required if output-format is email, invalid if output-format is anything else.
-    /// Template placeholders supported: {{name}}, {{shortlist}}, {{personal_match_count}}, {{total_match_count}}
+    /// Template placeholders supported: {{name}}, {{shortlist}}, {{personal_match_count_title}}, {{personal_match_count_body}}, {{total_match_count}}
     #[arg(long, value_name = "TEMPLATE_PATH")]
     email_template: Option<PathBuf>,
 }

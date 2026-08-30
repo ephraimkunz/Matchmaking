@@ -8,6 +8,7 @@ anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 csv = "1"
 docx-rs = { git = "https://github.com/ephraimkunz/docx-rs", branch = "ekunz-matchmaking-avoid-balanceSingleByteDoubleByteWidth" }
+english-numbers = "0.3"
 itertools = "0.15"
 rand = "0.10"
 regex = "1"
