@@ -198,7 +198,7 @@ fn run<W1: Write, W2: Write>(args: Args, stdout: &mut W1, stderr: &mut W2) -> Re
         }
         OutputFormat::Schedule => {
             let schedule = generate_schedule(&matches)?;
-            write!(stdout, "{}", schedule.stdout)?;
+            write!(stdout, "{}\n{}", schedule.stderr, schedule.stdout)?;
         }
     }
 

@@ -66,7 +66,7 @@ pub fn generate_schedule(matches: &Matches) -> Result<Schedule> {
     let output = Command::new("minizinc")
         .arg("--solver")
         .arg("cp-sat")
-        // .arg("-v")
+        .arg("-v")
         .arg("-p")
         .arg("8")
         .arg("./constraints.mzn")
