@@ -15,6 +15,7 @@ use matchmaking::Matches;
 use matchmaking::generate_docx;
 use matchmaking::generate_email;
 use matchmaking::generate_graph;
+use matchmaking::generate_schedule;
 use matchmaking::parse_and_generate_matches;
 use matchmaking::validate_ids;
 use std::io::Write;
@@ -97,6 +98,8 @@ enum OutputFormat {
     Email,
     /// A Graphviz file that visualizes the match relationships named graph.png is created and opened
     Graph,
+    /// Output a schedule for one-on-one meetings of people to their matches
+    Schedule,
 }
 
 impl Args {
@@ -185,13 +188,17 @@ fn run<W1: Write, W2: Write>(args: Args, stdout: &mut W1, stderr: &mut W2) -> Re
             let path = generate_docx(&matches)?;
             open::that(path)?;
         }
-        OutputFormat::Json => write!(stdout, "{}", serde_json::to_string_pretty(&matches)?)?,
+        OutputFormat::Json => serde_json::to_writer_pretty(stdout, &matches)?,
         OutputFormat::Email => {
             generate_email(&matches, args.email_template, total_match_count, stdout)?;
         }
         OutputFormat::Graph => {
             let path = generate_graph(&matches)?;
             open::that(path)?;
+        }
+        OutputFormat::Schedule => {
+            let schedule = generate_schedule(&matches)?;
+            write!(stdout, "{}", schedule.stdout)?;
         }
     }
 
