@@ -14,6 +14,7 @@ use itertools::Itertools;
 use matchmaking::Matches;
 use matchmaking::generate_docx;
 use matchmaking::generate_email;
+use matchmaking::generate_graph;
 use matchmaking::parse_and_generate_matches;
 use matchmaking::validate_ids;
 use std::io::Write;
@@ -94,6 +95,8 @@ enum OutputFormat {
     Json,
     /// Emails are generated from a template file, printed to stdout
     Email,
+    /// A Graphviz file that visualizes the match relationships named graph.png is created and opened
+    Graph,
 }
 
 impl Args {
@@ -185,6 +188,10 @@ fn run<W1: Write, W2: Write>(args: Args, stdout: &mut W1, stderr: &mut W2) -> Re
         OutputFormat::Json => write!(stdout, "{}", serde_json::to_string_pretty(&matches)?)?,
         OutputFormat::Email => {
             generate_email(&matches, args.email_template, total_match_count, stdout)?;
+        }
+        OutputFormat::Graph => {
+            let path = generate_graph(&matches)?;
+            open::that(path)?;
         }
     }
 

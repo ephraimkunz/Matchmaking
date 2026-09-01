@@ -10,6 +10,7 @@ csv = "1"
 docx-rs = { git = "https://github.com/ephraimkunz/docx-rs", branch = "ekunz-matchmaking-avoid-balanceSingleByteDoubleByteWidth" }
 english-numbers = "0.3"
 itertools = "0.15"
+petgraph = "0.8"
 rand = "0.10"
 regex = "1"
 rustc-hash = "2"

@@ -19,12 +19,14 @@ use wasm_bindgen::prelude::*;
 mod diagnostics;
 mod docx;
 mod email;
+mod graph;
 mod matching;
 mod parsing;
 mod validation;
 
 pub use docx::generate_docx;
 pub use email::generate_email;
+pub use graph::generate_graph;
 pub use matching::Matches;
 pub use validation::validate_ids;
 
