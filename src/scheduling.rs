@@ -68,7 +68,7 @@ pub fn generate_schedule(matches: &Matches) -> Result<Schedule> {
         .arg("cp-sat")
         .arg("-v")
         .arg("-p")
-        .arg("8")
+        .arg("10")
         .arg("./constraints.mzn")
         .arg(&data_path)
         .output()?;

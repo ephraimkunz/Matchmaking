@@ -256,14 +256,52 @@ solve maximize
     + 2 * mutual_matches;
 
 
+
+% ============================================================
+% SUMMARY STATISTICS
+% ============================================================
+
+var int: n_full_3 = sum(p in PEOPLE)(bool2int(match_count[p] == 3));
+var int: n_full_2 = sum(p in PEOPLE)(bool2int(match_count[p] == 2));
+var int: n_full_1 = sum(p in PEOPLE)(bool2int(match_count[p] == 1));
+var int: n_full_0 = sum(p in PEOPLE)(bool2int(match_count[p] == 0));
+
+var int: n_honored_3 = sum(p in PEOPLE)(bool2int(honored_count[p] == 3));
+var int: n_honored_2 = sum(p in PEOPLE)(bool2int(honored_count[p] == 2));
+var int: n_honored_1 = sum(p in PEOPLE)(bool2int(honored_count[p] == 1));
+var int: n_honored_0 = sum(p in PEOPLE)(bool2int(honored_count[p] == 0));
+
+var int: total_meetings =
+    sum(p, q in PEOPLE, r in ROUNDS where p < q)(bool2int(paired[p, q, r]));
+
+
 % ============================================================
 % OUTPUT
 % ============================================================
 
 output [
-    "Coverage score: ", show(coverage_score), "\n",
-    "Honored score: ", show(honored_score), "\n",
-    "Mutual matches: ", show(mutual_matches), "\n\n",
+    "Attendance:\n",
+    "  3 rounds: ", show(n_full_3), " / ", show(N),
+        " (", show(round(100.0 * n_full_3 / N)), "%)\n",
+    "  2 rounds: ", show(n_full_2), " / ", show(N),
+        " (", show(round(100.0 * n_full_2 / N)), "%)\n",
+    "  1 round:  ", show(n_full_1), " / ", show(N),
+        " (", show(round(100.0 * n_full_1 / N)), "%)\n",
+    "  0 rounds: ", show(n_full_0), " / ", show(N),
+        " (", show(round(100.0 * n_full_0 / N)), "%)\n\n",
+
+    "List matches:\n",
+    "  3 from list: ", show(n_honored_3), " / ", show(N),
+        " (", show(round(100.0 * n_honored_3 / N)), "%)\n",
+    "  2 from list: ", show(n_honored_2), " / ", show(N),
+        " (", show(round(100.0 * n_honored_2 / N)), "%)\n",
+    "  1 from list: ", show(n_honored_1), " / ", show(N),
+        " (", show(round(100.0 * n_honored_1 / N)), "%)\n",
+    "  0 from list: ", show(n_honored_0), " / ", show(N),
+        " (", show(round(100.0 * n_honored_0 / N)), "%)\n\n",
+
+    "Mutual meetings: ", show(mutual_matches), " / ", show(total_meetings),
+        " (", show(round(100.0 * mutual_matches / total_meetings)), "%)\n\n",
 
     "\nSchedule:\n",
 
