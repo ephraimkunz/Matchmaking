@@ -262,7 +262,7 @@ mod tests {
 
         let stderr = String::from_utf8(stderr).unwrap();
         let stderr_lines = stderr.lines().collect_vec().len();
-        assert!(stderr_lines > 50 && stderr_lines < 100);
+        assert!(stderr_lines > 50 && stderr_lines < 150);
     }
 
     #[test]

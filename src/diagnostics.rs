@@ -17,6 +17,10 @@ pub struct Diagnostics {
     pub dealbreaker_by_stay_local: usize,
     pub dealbreaker_by_marriage_timeline: usize,
     pub dealbreaker_by_religion: usize,
+    /// Of `dealbreaker_by_religion`, how many were tripped by an exact-match ("the same
+    /// as mine") requirement vs. a same-or-adjacent ("within one level of mine") one.
+    pub dealbreaker_by_religion_same: usize,
+    pub dealbreaker_by_religion_within1level: usize,
     /// Fraction of pair-score variance explained by additive per-person effects (some
     /// people score well, or poorly, with almost everyone) rather than genuine
     /// pair-specific compatibility. A property of the raw scoring, not of any one run.
@@ -106,6 +110,8 @@ impl Default for Diagnostics {
             dealbreaker_by_stay_local: 0,
             dealbreaker_by_marriage_timeline: 0,
             dealbreaker_by_religion: 0,
+            dealbreaker_by_religion_same: 0,
+            dealbreaker_by_religion_within1level: 0,
             person_effect_share: 0.0,
             person_effect_share_calibrated: 0.0,
             demand_max: 0,
@@ -184,6 +190,16 @@ impl Display for Diagnostics {
         )?;
         writeln!(
             f,
+            "      {:<P_SW$}{:>P_VW$}",
+            "exact match", self.dealbreaker_by_religion_same
+        )?;
+        writeln!(
+            f,
+            "      {:<P_SW$}{:>P_VW$}",
+            "within 1 level", self.dealbreaker_by_religion_within1level
+        )?;
+        writeln!(
+            f,
             "  {:<P_LW$}{:>P_VW$}",
             "person_effect_share",
             format!("{:.1}%", self.person_effect_share * 100.0)
@@ -210,6 +226,14 @@ impl Display for Diagnostics {
         writeln!(
             f,
             "  dealbreaker_eliminated: pairs rejected before scoring due to dealbreakers"
+        )?;
+        writeln!(
+            f,
+            "  religion / exact match: of the religion eliminations, how many were because one side demanded an exact match on religious commitment level (any gap disqualifies)"
+        )?;
+        writeln!(
+            f,
+            "  religion / within 1 level: of the religion eliminations, how many were because one side would accept an adjacent level but the gap was still more than 1. exact match + within 1 level == religion"
         )?;
         writeln!(
             f,
@@ -470,7 +494,17 @@ pub enum DealbreakerCause {
     WantsChildren,
     StayLocal,
     MarriageTimeline,
-    Religion,
+    /// Which side's preference actually tripped the dealbreaker (whichever is checked
+    /// first when both would fail).
+    Religion(ReligionRequirementType),
+}
+
+/// Which flavor of "partner's religious commitment level should be" preference caused a
+/// religion dealbreaker: an exact match requirement, or a same-or-adjacent-level one.
+#[derive(Debug, Clone, Copy)]
+pub enum ReligionRequirementType {
+    Same,
+    Within1Level,
 }
 
 pub struct PairsStats {
@@ -481,6 +515,10 @@ pub struct PairsStats {
     pub dealbreaker_by_stay_local: usize,
     pub dealbreaker_by_marriage_timeline: usize,
     pub dealbreaker_by_religion: usize,
+    /// Of `dealbreaker_by_religion`, how many were tripped by an exact-match ("the same
+    /// as mine") requirement vs. a same-or-adjacent ("within one level of mine") one.
+    pub dealbreaker_by_religion_same: usize,
+    pub dealbreaker_by_religion_within1level: usize,
 }
 
 pub struct ShortlistStats {
@@ -872,6 +910,8 @@ pub fn build_diagnostics(
         dealbreaker_by_stay_local: ps.dealbreaker_by_stay_local,
         dealbreaker_by_marriage_timeline: ps.dealbreaker_by_marriage_timeline,
         dealbreaker_by_religion: ps.dealbreaker_by_religion,
+        dealbreaker_by_religion_same: ps.dealbreaker_by_religion_same,
+        dealbreaker_by_religion_within1level: ps.dealbreaker_by_religion_within1level,
         person_effect_share,
         person_effect_share_calibrated,
         demand_max,
@@ -958,6 +998,10 @@ mod tests {
                 + diags.dealbreaker_by_marriage_timeline
                 + diags.dealbreaker_by_religion,
             diags.dealbreaker_eliminated
+        );
+        assert_eq!(
+            diags.dealbreaker_by_religion_same + diags.dealbreaker_by_religion_within1level,
+            diags.dealbreaker_by_religion
         );
         assert!((0.0..=1.0).contains(&diags.mutual_rate));
         assert!((0.0..=1.0).contains(&diags.person_effect_share));

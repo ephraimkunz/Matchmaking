@@ -10,7 +10,8 @@ use crate::parsing::{
 };
 
 use crate::diagnostics::{
-    DealbreakerCause, Diagnostics, PairsStats, ShortlistStats, build_diagnostics,
+    DealbreakerCause, Diagnostics, PairsStats, ReligionRequirementType, ShortlistStats,
+    build_diagnostics,
 };
 use crate::validation::validate_id;
 
@@ -225,40 +226,32 @@ fn passes_dealbreakers(
         _ => (),
     }
 
+    let religion_gap = a
+        .dealbreakers
+        .my_religious_commitment
+        .0
+        .abs_diff(b.dealbreakers.my_religious_commitment.0);
+
     match &a.dealbreakers.partners_religious_commitment {
-        PartnersReligionResponse::Same
-            if a.dealbreakers.my_religious_commitment.0
-                != b.dealbreakers.my_religious_commitment.0 =>
-        {
-            return Err(DealbreakerCause::Religion);
+        PartnersReligionResponse::Same if religion_gap != 0 => {
+            return Err(DealbreakerCause::Religion(ReligionRequirementType::Same));
         }
-        PartnersReligionResponse::Within1Level
-            if a.dealbreakers
-                .my_religious_commitment
-                .0
-                .abs_diff(b.dealbreakers.my_religious_commitment.0)
-                > 1 =>
-        {
-            return Err(DealbreakerCause::Religion);
+        PartnersReligionResponse::Within1Level if religion_gap > 1 => {
+            return Err(DealbreakerCause::Religion(
+                ReligionRequirementType::Within1Level,
+            ));
         }
         _ => (),
     }
 
     match &b.dealbreakers.partners_religious_commitment {
-        PartnersReligionResponse::Same
-            if b.dealbreakers.my_religious_commitment.0
-                != a.dealbreakers.my_religious_commitment.0 =>
-        {
-            return Err(DealbreakerCause::Religion);
+        PartnersReligionResponse::Same if religion_gap != 0 => {
+            return Err(DealbreakerCause::Religion(ReligionRequirementType::Same));
         }
-        PartnersReligionResponse::Within1Level
-            if b.dealbreakers
-                .my_religious_commitment
-                .0
-                .abs_diff(a.dealbreakers.my_religious_commitment.0)
-                > 1 =>
-        {
-            return Err(DealbreakerCause::Religion);
+        PartnersReligionResponse::Within1Level if religion_gap > 1 => {
+            return Err(DealbreakerCause::Religion(
+                ReligionRequirementType::Within1Level,
+            ));
         }
         _ => (),
     }
@@ -619,6 +612,8 @@ fn build_scored_pairs(
             dealbreaker_by_stay_local: 0,
             dealbreaker_by_marriage_timeline: 0,
             dealbreaker_by_religion: 0,
+            dealbreaker_by_religion_same: 0,
+            dealbreaker_by_religion_within1level: 0,
         })
     } else {
         None
@@ -654,7 +649,17 @@ fn build_scored_pairs(
                         DealbreakerCause::MarriageTimeline => {
                             s.dealbreaker_by_marriage_timeline += 1;
                         }
-                        DealbreakerCause::Religion => s.dealbreaker_by_religion += 1,
+                        DealbreakerCause::Religion(requirement) => {
+                            s.dealbreaker_by_religion += 1;
+                            match requirement {
+                                ReligionRequirementType::Same => {
+                                    s.dealbreaker_by_religion_same += 1;
+                                }
+                                ReligionRequirementType::Within1Level => {
+                                    s.dealbreaker_by_religion_within1level += 1;
+                                }
+                            }
+                        }
                     }
                 }
                 continue;
