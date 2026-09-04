@@ -1456,7 +1456,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(matches.0.len(), 1);
-        assert!(matches.0[0].shortlist.is_empty());
+        assert_eq!(matches.0[0].shortlist, [] as [ShortlistMatch; 0]);
         assert_eq!(
             matches,
             Matches(vec![MatchCard {

@@ -938,7 +938,7 @@ mod tests {
     #[test]
     fn smoke_display_renders_default_diagnostics() {
         let text = Diagnostics::default().to_string();
-        assert!(!text.is_empty());
+        assert_ne!(text, "");
         assert!(text.contains("CONVERGENCE"));
     }
 
@@ -997,7 +997,7 @@ mod tests {
         assert!(diags.pair_score_stddev >= 0.0);
 
         let text = diags.to_string();
-        assert!(!text.is_empty());
+        assert_ne!(text, "");
         assert!(text.contains("CONVERGENCE"));
         assert!(text.contains("headroom_ratio"));
         assert!(text.contains("headroom_ranking"));

@@ -233,8 +233,8 @@ mod tests {
         let mut stderr = vec![];
         assert!(run(args, &mut stdout, &mut stderr).is_ok());
 
-        assert!(!stdout.is_empty());
-        assert!(stderr.is_empty());
+        assert_ne!(stdout, [] as [u8; 0]);
+        assert_eq!(stderr, [] as [u8; 0]);
 
         let stdout = String::from_utf8(stdout).unwrap();
         assert!(stdout.lines().collect_vec().len() > 100);
@@ -254,8 +254,8 @@ mod tests {
         let mut stderr = vec![];
         assert!(run(args, &mut stdout, &mut stderr).is_ok());
 
-        assert!(!stdout.is_empty());
-        assert!(!stderr.is_empty());
+        assert_ne!(stdout, [] as [u8; 0]);
+        assert_ne!(stderr, [] as [u8; 0]);
 
         let stdout = String::from_utf8(stdout).unwrap();
         assert!(stdout.lines().collect_vec().len() > 100);
@@ -297,8 +297,8 @@ mod tests {
         let mut stderr = vec![];
         assert!(run(args, &mut stdout, &mut stderr).is_ok());
 
-        assert!(!stdout.is_empty());
-        assert!(stderr.is_empty());
+        assert_ne!(stdout, [] as [u8; 0]);
+        assert_eq!(stderr, [] as [u8; 0]);
 
         let stdout = String::from_utf8(stdout).unwrap();
         assert!(stdout.lines().collect_vec().len() < 70);
@@ -437,7 +437,7 @@ mod tests {
         let mut stderr = vec![];
         assert!(run(args, &mut stdout, &mut stderr).is_ok());
 
-        assert!(!stdout.is_empty());
-        assert!(stderr.is_empty());
+        assert_ne!(stdout, [] as [u8; 0]);
+        assert_eq!(stderr, [] as [u8; 0]);
     }
 }
