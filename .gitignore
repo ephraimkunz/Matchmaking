@@ -26,3 +26,8 @@ matches.docx
 ~$atches.docx
 real_data
 graph.png
+analysis/output/
+analysis/*.csv
+analysis/clustering/*.png
+analysis/clustering/*.csv
+analysis/__pycache__
