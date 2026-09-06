@@ -33,7 +33,7 @@ struct ModelData {
 /// # Errors
 ///
 /// Returns and error when there is no schedule due to constraint solving failing.
-pub fn generate_schedule(matches: &Matches) -> Result<Schedule> {
+pub fn generate_schedule(matches: &Matches, _attendance_path: Option<&Path>) -> Result<Schedule> {
     let r = 3;
     let n = matches.0.len();
 

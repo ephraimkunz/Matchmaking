@@ -9,7 +9,7 @@
 #![deny(clippy::print_stderr)]
 
 use anyhow::{Context, Result};
-use clap::{CommandFactory, Parser, ValueEnum};
+use clap::{Parser, Subcommand};
 use itertools::Itertools;
 use matchmaking::Matches;
 use matchmaking::generate_docx;
@@ -22,10 +22,13 @@ use std::io::Write;
 use std::path::PathBuf;
 
 /// Generate shortlists of compatible dating partners, based on input dating questionnaire.
-#[allow(clippy::doc_markdown)]
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
+    /// What type of output to generate. `PlainText` is used by default if one is not provided.
+    #[command(subcommand)]
+    output: Option<OutputFormat>,
+
     /// Name of the input file
     #[arg(value_name = "INPUT_FILE")]
     input_file_name: PathBuf,
@@ -33,10 +36,6 @@ struct Args {
     /// Sorts each shortlist by descending score, so best matches appear at the top. If this is not set, the order of each shortlist is random.
     #[arg(short, long)]
     sort_shortlists_by_score: bool,
-
-    /// Print match score next to each match name. Only applies if output-format is plain-text. Invalid if output-format is anything else.
-    #[arg(short, long)]
-    print_scores: bool,
 
     /// Print diagnostic statistics to stderr
     #[arg(short, long)]
@@ -65,10 +64,6 @@ struct Args {
     #[arg(long, value_name = "PERSON_ID")]
     debug_print_candidate_list: Option<String>,
 
-    /// What type of output to generate.
-    #[arg(short, long, value_enum, default_value_t = OutputFormat::PlainText)]
-    output_format: OutputFormat,
-
     /// Ids (emails) to exclude during parsing. Any id provided here is as if it was never in the input to begin with.
     /// This is helpful when people live far away and you plan to run multiple matching rounds and want to exclude on some.
     #[arg(long, default_values_t = Vec::<String>::new(), num_args(1..))]
@@ -79,71 +74,47 @@ struct Args {
     /// few ids on some.
     #[arg(long, default_values_t = Vec::<String>::new(), num_args(1..))]
     output_ids: Vec<String>,
-
-    /// Path to a template file used to generate emails. Required if output-format is email, invalid if output-format is anything else.
-    /// Template placeholders supported: {{name}}, {{shortlist}}, {{personal_match_count_title}}, {{personal_match_count_body}}, {{total_match_count}}
-    #[arg(long, value_name = "TEMPLATE_PATH")]
-    email_template: Option<PathBuf>,
 }
 
-#[derive(Debug, Clone, ValueEnum)]
+#[derive(Debug, Clone, Subcommand)]
 enum OutputFormat {
     /// Plaintext for checking results is printed to stdout
-    PlainText,
+    PlainText {
+        /// Print match score next to each match name.
+        #[arg(short, long)]
+        print_scores: bool,
+    },
     /// Word document names matches.docx is created and opened
     DocX,
     /// JSON document is printed to stdout
-    Json,
+    Json {
+        /// Whether JSON is pretty-printed or not.
+        #[arg(short, long)]
+        pretty: bool,
+    },
     /// Emails are generated from a template file, printed to stdout
-    Email,
+    #[allow(clippy::doc_markdown)]
+    Email {
+        /// Path to a template file used to generate emails.
+        /// Template placeholders supported: {{name}}, {{shortlist}}, {{personal_match_count_title}}, {{personal_match_count_body}}, {{total_match_count}}
+        #[arg(long, value_name = "TEMPLATE_PATH")]
+        template: PathBuf,
+    },
     /// A Graphviz file that visualizes the match relationships named graph.png is created and opened
     Graph,
     /// Output a schedule for one-on-one meetings of people to their matches
-    Schedule,
-}
-
-impl Args {
-    fn validate(&self) -> clap::error::Result<()> {
-        let mut cmd = Args::command();
-
-        if self.print_scores && !matches!(self.output_format, OutputFormat::PlainText) {
-            return Err(cmd.error(
-                clap::error::ErrorKind::ArgumentConflict,
-                "--print-scores (-p) can only be used with --output-format=plain-text",
-            ));
-        }
-
-        if let Some(template) = &self.email_template {
-            if !matches!(self.output_format, OutputFormat::Email) {
-                return Err(cmd.error(
-                    clap::error::ErrorKind::ArgumentConflict,
-                    "--email-template can only be used with --output-format=email",
-                ));
-            }
-            if !template.exists() {
-                return Err(cmd.error(
-                    clap::error::ErrorKind::InvalidValue,
-                    format!("template file not found: {}", template.display()),
-                ));
-            }
-        }
-
-        if matches!(self.output_format, OutputFormat::Email) && self.email_template.is_none() {
-            return Err(cmd.error(
-                clap::error::ErrorKind::MissingRequiredArgument,
-                "--output-format=email requires --email-template <PATH>",
-            ));
-        }
-
-        Ok(())
-    }
+    Schedule {
+        /// Path to a JSON file of the form:
+        /// {[{name: string, gender: "M"|"F"}]} that represents all people attending.
+        /// Anyone on this list but not in `INPUT_FILE` will be considered walk-ins.
+        /// Failing to provide this assumes that all those in `INPUT_FILE` are present
+        #[arg(long, value_name = "ATTENDANCE_PATH")]
+        attendance: Option<PathBuf>,
+    },
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    if let Err(e) = args.validate() {
-        e.exit();
-    }
     run(args, &mut std::io::stdout(), &mut std::io::stderr())
 }
 
@@ -179,25 +150,33 @@ fn run<W1: Write, W2: Write>(args: Args, stdout: &mut W1, stderr: &mut W2) -> Re
         .collect_vec();
     let matches = Matches(filtered_cards);
 
-    match args.output_format {
-        OutputFormat::PlainText => {
-            let out = matches.plaintext(args.print_scores)?;
+    match args.output.unwrap_or(OutputFormat::PlainText {
+        print_scores: false,
+    }) {
+        OutputFormat::PlainText { print_scores } => {
+            let out = matches.plaintext(print_scores)?;
             write!(stdout, "{out}")?;
         }
         OutputFormat::DocX => {
             let path = generate_docx(&matches)?;
             open::that(path)?;
         }
-        OutputFormat::Json => serde_json::to_writer_pretty(stdout, &matches)?,
-        OutputFormat::Email => {
-            generate_email(&matches, args.email_template, total_match_count, stdout)?;
+        OutputFormat::Json { pretty } => {
+            if pretty {
+                serde_json::to_writer_pretty(stdout, &matches)?;
+            } else {
+                serde_json::to_writer(stdout, &matches)?;
+            }
+        }
+        OutputFormat::Email { template } => {
+            generate_email(&matches, &template, total_match_count, stdout)?;
         }
         OutputFormat::Graph => {
             let path = generate_graph(&matches)?;
             open::that(path)?;
         }
-        OutputFormat::Schedule => {
-            let schedule = generate_schedule(&matches)?;
+        OutputFormat::Schedule { attendance } => {
+            let schedule = generate_schedule(&matches, attendance.as_deref())?;
             write!(stdout, "{}\n{}", schedule.stderr, schedule.stdout)?;
         }
     }
@@ -225,8 +204,9 @@ mod tests {
         let input = [
             "matchmaking",
             "--sort-shortlists-by-score",
-            "--print-scores",
             "test_data/many_generated.csv",
+            "plain-text",
+            "--print-scores",
         ];
         let args = Args::try_parse_from(input).unwrap();
         let mut stdout = vec![];
@@ -245,9 +225,10 @@ mod tests {
         let input = [
             "matchmaking",
             "--sort-shortlists-by-score",
-            "--print-scores",
             "-d",
             "test_data/many_generated.csv",
+            "plain-text",
+            "--print-scores",
         ];
         let args = Args::try_parse_from(input).unwrap();
         let mut stdout = vec![];
@@ -271,8 +252,6 @@ mod tests {
             "matchmaking",
             "test_data/many_generated.csv",
             "--output-ids",
-            "-o",
-            "plain-text",
         ];
 
         // try_parse_from returns a Result, preventing test panics
@@ -347,12 +326,11 @@ mod tests {
         let input = [
             "matchmaking",
             "test_data/many_generated.csv",
-            "-o",
             "plain-text",
             "-p",
         ];
-        let args = Args::try_parse_from(input).unwrap();
-        assert!(args.validate().is_ok());
+        let args = Args::try_parse_from(input);
+        assert!(args.is_ok());
     }
 
     #[test]
@@ -365,8 +343,8 @@ mod tests {
                 output,
                 "-p",
             ];
-            let args = Args::try_parse_from(input).unwrap();
-            assert!(args.validate().is_err());
+            let args = Args::try_parse_from(input);
+            assert!(args.is_err());
         }
     }
 
@@ -375,13 +353,12 @@ mod tests {
         let input = [
             "matchmaking",
             "test_data/many_generated.csv",
-            "-o",
             "email",
-            "--email-template",
+            "--template",
             "./test_data/test_email_template.txt",
         ];
-        let args = Args::try_parse_from(input).unwrap();
-        assert!(args.validate().is_ok());
+        let args = Args::try_parse_from(input);
+        assert!(args.is_ok());
     }
 
     #[test]
@@ -395,8 +372,8 @@ mod tests {
                 "--email-template",
                 "./test_data/test_email_template.txt",
             ];
-            let args = Args::try_parse_from(input).unwrap();
-            assert!(args.validate().is_err());
+            let args = Args::try_parse_from(input);
+            assert!(args.is_err());
         }
     }
 
@@ -410,15 +387,15 @@ mod tests {
             "--email-template",
             "./test_data/does_not_exist.txt",
         ];
-        let args = Args::try_parse_from(input).unwrap();
-        assert!(args.validate().is_err());
+        let args = Args::try_parse_from(input);
+        assert!(args.is_err());
     }
 
     #[test]
     fn args_validate_email_output_no_email_template() {
         let input = ["matchmaking", "test_data/many_generated.csv", "-o", "email"];
-        let args = Args::try_parse_from(input).unwrap();
-        assert!(args.validate().is_err());
+        let args = Args::try_parse_from(input);
+        assert!(args.is_err());
     }
 
     #[test]

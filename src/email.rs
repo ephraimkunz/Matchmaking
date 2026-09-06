@@ -1,6 +1,6 @@
-use std::{io::Write, path::PathBuf};
+use std::{io::Write, path::Path};
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use english_numbers::Formatting;
 
 use crate::Matches;
@@ -10,14 +10,10 @@ use crate::Matches;
 /// Returns errors if the template can't be found or loaded, or if there are issues writing to stdout.
 pub fn generate_email<W: Write>(
     matches: &Matches,
-    template_path: Option<PathBuf>,
+    template_path: &Path,
     total_match_count: usize,
     stdout: &mut W,
 ) -> Result<()> {
-    // template_path was validated as always being present if we got here in Args::validate.
-    let template_path = template_path.ok_or(anyhow!(
-        "Template_path was null in generate_email, which should be impossible"
-    ))?;
     let template = std::fs::read_to_string(template_path)
         .with_context(|| "Unable to read template_path into string")?;
 
@@ -82,7 +78,7 @@ mod tests {
         assert!(
             generate_email(
                 &Matches(vec![]),
-                Some(Path::new("./test_data/test_email_template.txt").to_path_buf()),
+                Path::new("./test_data/test_email_template.txt"),
                 0,
                 &mut stdout
             )
