@@ -19,7 +19,7 @@ where
     let s = String::deserialize(deserializer)?;
 
     // Match against uppercase and standard variations
-    match s.to_uppercase().as_str() {
+    match s.as_str() {
         "TRUE" | "true" | "t" | "yes" | "y" => Ok(true),
         "FALSE" | "false" | "f" | "no" | "n" => Ok(false),
         _ => Err(serde::de::Error::custom(format!(
@@ -133,11 +133,16 @@ pub fn generate_schedule(matches: &Matches, attendance_path: Option<&Path>) -> R
     let output = Command::new("minizinc")
         .arg("--solver")
         .arg("cp-sat")
-        .arg("-v")
         .arg("-p")
         .arg("10")
         .arg("./constraints.mzn")
         .arg(&data_path)
+        // .arg("--output-mode")
+        // .arg("json")
+        .arg("soln-sep")
+        .arg("")
+        .arg("--search-complete-msg")
+        .arg("")
         .output()?;
 
     std::fs::remove_file(data_path)?;
@@ -194,4 +199,130 @@ fn matches_and_attendance(
     }
 
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        matching::ShortlistMatch,
+        parsing::{Age, FreeResponse},
+    };
+
+    use super::*;
+
+    #[test]
+    fn empty_attendance() {
+        let matches = Matches(vec![
+            MatchCard {
+                name: "Candidate A".to_string(),
+                email: "first".to_string(),
+                gender: Gender::Male,
+                shortlist: vec![ShortlistMatch {
+                    name: "Candidate B".to_string(),
+                    age: Age(26),
+                    email: "second".to_string(),
+                    freeresponse: FreeResponse {
+                        responses: vec![("Favorite hobby:".to_string(), "Beekeeping".to_string())],
+                    },
+                    score: 0.989_766_06,
+                }],
+            },
+            MatchCard {
+                name: "Candidate B".to_string(),
+                email: "second".to_string(),
+                gender: Gender::Female,
+                shortlist: vec![ShortlistMatch {
+                    name: "Candidate A".to_string(),
+                    age: Age(34),
+                    email: "first".to_string(),
+                    freeresponse: FreeResponse { responses: vec![] },
+                    score: 0.989_766_06,
+                }],
+            },
+        ]);
+        let m_a = matches_and_attendance(&matches, None);
+        assert_eq!(m_a.as_ref().unwrap().len(), 2);
+        assert!(m_a.as_ref().unwrap()[0].1);
+        assert!(m_a.as_ref().unwrap()[1].1);
+    }
+
+    #[test]
+    fn attendance_partial() {
+        let matches = Matches(vec![
+            MatchCard {
+                name: "Candidate A".to_string(),
+                email: "first".to_string(),
+                gender: Gender::Male,
+                shortlist: vec![ShortlistMatch {
+                    name: "Candidate B".to_string(),
+                    age: Age(26),
+                    email: "second".to_string(),
+                    freeresponse: FreeResponse {
+                        responses: vec![("Favorite hobby:".to_string(), "Beekeeping".to_string())],
+                    },
+                    score: 0.989_766_06,
+                }],
+            },
+            MatchCard {
+                name: "Candidate B".to_string(),
+                email: "second".to_string(),
+                gender: Gender::Female,
+                shortlist: vec![ShortlistMatch {
+                    name: "Candidate A".to_string(),
+                    age: Age(34),
+                    email: "first".to_string(),
+                    freeresponse: FreeResponse { responses: vec![] },
+                    score: 0.989_766_06,
+                }],
+            },
+        ]);
+        let m_a = matches_and_attendance(
+            &matches,
+            Some(Path::new("./test_data/attendance_partial.csv")),
+        );
+        assert_eq!(m_a.as_ref().unwrap().len(), 2);
+        assert!(!m_a.as_ref().unwrap()[0].1);
+        assert!(m_a.as_ref().unwrap()[1].1);
+    }
+
+    #[test]
+    fn attendance_walkins() {
+        let matches = Matches(vec![
+            MatchCard {
+                name: "Candidate A".to_string(),
+                email: "first".to_string(),
+                gender: Gender::Male,
+                shortlist: vec![ShortlistMatch {
+                    name: "Candidate B".to_string(),
+                    age: Age(26),
+                    email: "second".to_string(),
+                    freeresponse: FreeResponse {
+                        responses: vec![("Favorite hobby:".to_string(), "Beekeeping".to_string())],
+                    },
+                    score: 0.989_766_06,
+                }],
+            },
+            MatchCard {
+                name: "Candidate B".to_string(),
+                email: "second".to_string(),
+                gender: Gender::Female,
+                shortlist: vec![ShortlistMatch {
+                    name: "Candidate A".to_string(),
+                    age: Age(34),
+                    email: "first".to_string(),
+                    freeresponse: FreeResponse { responses: vec![] },
+                    score: 0.989_766_06,
+                }],
+            },
+        ]);
+        let m_a = matches_and_attendance(
+            &matches,
+            Some(Path::new("./test_data/attendance_walkins.csv")),
+        );
+        assert_eq!(m_a.as_ref().unwrap().len(), 4);
+        assert!(m_a.as_ref().unwrap()[0].1);
+        assert!(!m_a.as_ref().unwrap()[1].1);
+        assert!(m_a.as_ref().unwrap()[2].1);
+        assert!(m_a.as_ref().unwrap()[3].1);
+    }
 }

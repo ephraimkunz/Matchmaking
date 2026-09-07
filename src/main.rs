@@ -109,7 +109,7 @@ enum OutputFormat {
 
 #[derive(Args, Debug, Clone)]
 struct ScheduleArgs {
-    /// What type of schedule output to generate. `PlainText` is used by default if one is not provided.
+    /// What type of schedule output to generate.
     #[command(subcommand)]
     output: ScheduleOutput,
 }

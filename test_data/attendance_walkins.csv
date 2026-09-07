@@ -1,0 +1,4 @@
+name,gender,attending
+candidate A,Female,TRUE
+walkin 1,Male,t
+walk in 2,Female,y
