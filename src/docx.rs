@@ -271,7 +271,7 @@ fn generate_section(cards: &[Table]) -> Section {
 #[cfg(test)]
 mod tests {
     use crate::matching::{MatchCard, ShortlistMatch};
-    use crate::parsing::{Age, FreeResponse};
+    use crate::parsing::{Age, FreeResponse, Gender};
 
     use super::*;
 
@@ -281,6 +281,7 @@ mod tests {
             MatchCard {
                 name: "Candidate A".to_string(),
                 email: "first".to_string(),
+                gender: Gender::Male,
                 shortlist: vec![ShortlistMatch {
                     name: "Candidate B".to_string(),
                     age: Age(26),
@@ -294,6 +295,7 @@ mod tests {
             MatchCard {
                 name: "Candidate B".to_string(),
                 email: "second".to_string(),
+                gender: Gender::Female,
                 shortlist: vec![ShortlistMatch {
                     name: "Candidate A".to_string(),
                     age: Age(34),

@@ -29,7 +29,7 @@ pub use docx::generate_docx;
 pub use email::generate_email;
 pub use graph::generate_graph;
 pub use matching::Matches;
-pub use scheduling::generate_schedule;
+pub use scheduling::{generate_attendance, generate_schedule};
 pub use validation::validate_ids;
 
 #[cfg(target_arch = "wasm32")]

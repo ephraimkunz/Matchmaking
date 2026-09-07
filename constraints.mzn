@@ -1,15 +1,5 @@
 % ============================================================
 % Dating Match Scheduler
-% TODO: Handle walkins, attendance and unscheduled people: 
-%For walk-ins: the fix is to relax the one constraint that currently forbids any pairing not backed by a list entry:
-% Only allow a pair if at least one person listed the other.
-%constraint
-%    forall(p, q in PEOPLE, r in ROUNDS where p < q) (
-%        paired[p, q, r] ->
-%            (wants[p, q] \/ wants[q, p])
-%    );
-% Add a new constraint to try to add men and women.
-% Also add to output printing each match each round.
 % ============================================================
 
 int: N;
@@ -18,7 +8,9 @@ set of int: PEOPLE = 1..N;
 int: R;
 set of int: ROUNDS = 1..R;
 
-array[1..N] of string: names;
+array[PEOPLE] of bool: attending;
+array[PEOPLE] of bool: is_male;
+array[PEOPLE] of string: names;
 
 % wants[p, q] = true if person p listed person q.
 array[PEOPLE, PEOPLE] of bool: wants;
@@ -44,6 +36,12 @@ constraint
         not paired[p, p, r]
     );
 
+% People must be attending to be paired.
+constraint
+    forall(p, q in PEOPLE, r in ROUNDS where p < q) (
+        paired[p, q, r] -> (attending[p] /\ attending[q])
+    );
+
 
 % Make the matrix symmetric.
 constraint
@@ -51,12 +49,11 @@ constraint
         paired[p, q, r] = paired[q, p, r]
     );
 
-
-% Only allow a pair if at least one person listed the other.
+% Allow pairing across genders, even if not on someone's list. This handles walk-ins and fills schedules.
 constraint
     forall(p, q in PEOPLE, r in ROUNDS where p < q) (
         paired[p, q, r] ->
-            (wants[p, q] \/ wants[q, p])
+            (wants[p, q] \/ wants[q, p] \/ is_male[p] != is_male[q])
     );
 
 
@@ -109,7 +106,7 @@ array[ROUNDS] of var 0..N: unscheduled_count;
 constraint
     forall(r in ROUNDS) (
         unscheduled_count[r] =
-            sum(p in PEOPLE) (
+            sum(p in PEOPLE where attending[p]) (
                 bool2int(
                     sum(q in PEOPLE where q != p)(bool2int(paired[p, q, r])) = 0
                 )
@@ -226,9 +223,9 @@ var int: mutual_matches =
 % ------------------------------------------------------------
 
 var int: coverage_score =
-      10000 * sum(p in PEOPLE)(bool2int(has_match_1[p]))
-    +  1000 * sum(p in PEOPLE)(bool2int(has_match_2[p]))
-    +   100 * sum(p in PEOPLE)(bool2int(has_match_3[p]));
+      10000 * sum(p in PEOPLE where attending[p])(bool2int(has_match_1[p]))
+    +  1000 * sum(p in PEOPLE where attending[p])(bool2int(has_match_2[p]))
+    +   100 * sum(p in PEOPLE where attending[p])(bool2int(has_match_3[p]));
 
 
 % ------------------------------------------------------------
@@ -241,9 +238,9 @@ var int: coverage_score =
 % ------------------------------------------------------------
 
 var int: honored_score =
-       80 * sum(p in PEOPLE)(bool2int(has_honored_1[p]))
-    +   8 * sum(p in PEOPLE)(bool2int(has_honored_2[p]))
-    +   1 * sum(p in PEOPLE)(bool2int(has_honored_3[p]));
+       80 * sum(p in PEOPLE where attending[p])(bool2int(has_honored_1[p]))
+    +   8 * sum(p in PEOPLE where attending[p])(bool2int(has_honored_2[p]))
+    +   1 * sum(p in PEOPLE where attending[p])(bool2int(has_honored_3[p]));
 
 
 % ============================================================
@@ -261,18 +258,47 @@ solve maximize
 % SUMMARY STATISTICS
 % ============================================================
 
-var int: n_full_3 = sum(p in PEOPLE)(bool2int(match_count[p] == 3));
-var int: n_full_2 = sum(p in PEOPLE)(bool2int(match_count[p] == 2));
-var int: n_full_1 = sum(p in PEOPLE)(bool2int(match_count[p] == 1));
-var int: n_full_0 = sum(p in PEOPLE)(bool2int(match_count[p] == 0));
+var int: n_full_3 = sum(p in PEOPLE where attending[p])(bool2int(match_count[p] == 3));
+var int: n_full_2 = sum(p in PEOPLE where attending[p])(bool2int(match_count[p] == 2));
+var int: n_full_1 = sum(p in PEOPLE where attending[p])(bool2int(match_count[p] == 1));
+var int: n_full_0 = sum(p in PEOPLE where attending[p])(bool2int(match_count[p] == 0));
 
-var int: n_honored_3 = sum(p in PEOPLE)(bool2int(honored_count[p] == 3));
-var int: n_honored_2 = sum(p in PEOPLE)(bool2int(honored_count[p] == 2));
-var int: n_honored_1 = sum(p in PEOPLE)(bool2int(honored_count[p] == 1));
-var int: n_honored_0 = sum(p in PEOPLE)(bool2int(honored_count[p] == 0));
+var int: n_honored_3 = sum(p in PEOPLE where attending[p])(bool2int(honored_count[p] == 3));
+var int: n_honored_2 = sum(p in PEOPLE where attending[p])(bool2int(honored_count[p] == 2));
+var int: n_honored_1 = sum(p in PEOPLE where attending[p])(bool2int(honored_count[p] == 1));
+var int: n_honored_0 = sum(p in PEOPLE where attending[p])(bool2int(honored_count[p] == 0));
+
+var int: num_attended = sum(p in PEOPLE where attending[p])(1);
+var int: num_attended_men = sum(p in PEOPLE where attending[p])(bool2int(is_male[p]));
+var int: num_attended_women = sum(p in PEOPLE where attending[p])(bool2int(not is_male[p]));
 
 var int: total_meetings =
-    sum(p, q in PEOPLE, r in ROUNDS where p < q)(bool2int(paired[p, q, r]));
+    sum(p, q in PEOPLE, r in ROUNDS where p < q /\ attending[p] /\ attending[q])(bool2int(paired[p, q, r]));
+
+% How many people p *could* be paired with at all (opposite gender, or on a list either direction, and attending).
+array[PEOPLE] of var 0..N: eligible_partners;
+constraint
+    forall(p in PEOPLE) (
+        eligible_partners[p] =
+            sum(q in PEOPLE where q != p /\ attending[q]) (
+                bool2int(wants[p, q] \/ wants[q, p] \/ is_male[p] != is_male[q])
+            )
+    );
+
+% How many people p personally listed.
+array[PEOPLE] of var 0..N: list_size;
+constraint
+    forall(p in PEOPLE) (
+        list_size[p] = sum(q in PEOPLE where q != p)(bool2int(wants[p, q]))
+    );
+
+% Of the people p listed, how many are actually attending.
+array[PEOPLE] of var 0..N: attending_list_matches;
+constraint
+    forall(p in PEOPLE) (
+        attending_list_matches[p] =
+            sum(q in PEOPLE where q != p /\ wants[p, q])(bool2int(attending[q]))
+    );
 
 
 % ============================================================
@@ -280,27 +306,28 @@ var int: total_meetings =
 % ============================================================
 
 output [
-    "Attendance:\n",
-    "  3 rounds: ", show(n_full_3), " / ", show(N),
-        " (", show(round(100.0 * n_full_3 / N)), "%)\n",
-    "  2 rounds: ", show(n_full_2), " / ", show(N),
-        " (", show(round(100.0 * n_full_2 / N)), "%)\n",
-    "  1 round:  ", show(n_full_1), " / ", show(N),
-        " (", show(round(100.0 * n_full_1 / N)), "%)\n",
-    "  0 rounds: ", show(n_full_0), " / ", show(N),
-        " (", show(round(100.0 * n_full_0 / N)), "%)\n\n",
+    "Total attendees: ", show(num_attended), ": ", show(num_attended_men), " men and ", show(num_attended_women), " women\n\n",
+    "How many people attended exactly:\n",
+    "  3 rounds: ", show(n_full_3), " / ", show(num_attended),
+        " (", show(round(100.0 * n_full_3 / num_attended)), "%)\n",
+    "  2 rounds: ", show(n_full_2), " / ", show(num_attended),
+        " (", show(round(100.0 * n_full_2 / num_attended)), "%)\n",
+    "  1 round:  ", show(n_full_1), " / ", show(num_attended),
+        " (", show(round(100.0 * n_full_1 / num_attended)), "%)\n",
+    "  0 rounds: ", show(n_full_0), " / ", show(num_attended),
+        " (", show(round(100.0 * n_full_0 / num_attended)), "%)\n\n",
 
-    "List matches:\n",
-    "  3 from list: ", show(n_honored_3), " / ", show(N),
-        " (", show(round(100.0 * n_honored_3 / N)), "%)\n",
-    "  2 from list: ", show(n_honored_2), " / ", show(N),
-        " (", show(round(100.0 * n_honored_2 / N)), "%)\n",
-    "  1 from list: ", show(n_honored_1), " / ", show(N),
-        " (", show(round(100.0 * n_honored_1 / N)), "%)\n",
-    "  0 from list: ", show(n_honored_0), " / ", show(N),
-        " (", show(round(100.0 * n_honored_0 / N)), "%)\n\n",
+    "How many people met with exactly:\n",
+    "  3 from list: ", show(n_honored_3), " / ", show(num_attended),
+        " (", show(round(100.0 * n_honored_3 / num_attended)), "%)\n",
+    "  2 from list: ", show(n_honored_2), " / ", show(num_attended),
+        " (", show(round(100.0 * n_honored_2 / num_attended)), "%)\n",
+    "  1 from list: ", show(n_honored_1), " / ", show(num_attended),
+        " (", show(round(100.0 * n_honored_1 / num_attended)), "%)\n",
+    "  0 from list: ", show(n_honored_0), " / ", show(num_attended),
+        " (", show(round(100.0 * n_honored_0 / num_attended)), "%)\n\n",
 
-    "Mutual meetings: ", show(mutual_matches), " / ", show(total_meetings),
+    "How many meetings were mutual: ", show(mutual_matches), " / ", show(total_meetings),
         " (", show(round(100.0 * mutual_matches / total_meetings)), "%)\n\n",
 
     "\nSchedule:\n",
@@ -314,7 +341,9 @@ output [
              then " (mutual)"
              elseif wants[p,q]
              then " (p chose q)"
-             else " (q chose p)"
+             elseif wants[q, p]
+             then " (q chose p)"
+             else " (neither chose)"
              endif) ++
             "\n"
             | p, q in PEOPLE where p < q /\ fix(paired[p,q,r])
@@ -325,8 +354,28 @@ output [
     "\nFinal summary:\n",
 
     concat([
-        "\(names[p]): attended " ++ show(match_count[p]) ++ "/" ++ show(R) ++
-        " rounds, " ++ show(honored_count[p]) ++ " with someone on their list\n"
-        | p in PEOPLE
+        "\(names[p]): attended " ++ show(match_count[p]) ++ "/" ++ show(R) ++ " rounds" ++
+        (if fix(match_count[p]) < R then
+            if fix(eligible_partners[p]) < R then
+                " [only " ++ show(eligible_partners[p]) ++ " eligible partners in the room]"
+            else
+                " [eligible partners were already paired with others]"
+            endif
+        else "" endif) ++
+        ", " ++ show(honored_count[p]) ++ " with someone on " ++
+        (if is_male[p] then "his" else "her" endif) ++ " list" ++
+        (if fix(honored_count[p]) < 3 then
+            if fix(list_size[p]) == 0 then
+                " [submitted no list]"
+            elseif fix(list_size[p]) < 3 then
+                " [only listed " ++ show(list_size[p]) ++ " people]"
+            elseif fix(honored_count[p]) == fix(attending_list_matches[p]) /\ fix(attending_list_matches[p]) < 3 then
+                " [only " ++ show(attending_list_matches[p]) ++ " of " ++ (if is_male[p] then "his" else "her" endif) ++ " list attended]"
+            else
+                " [listed matches were paired with others]"
+            endif
+        else "" endif) ++
+        "\n"
+        | p in PEOPLE where attending[p]
     ])
 ];

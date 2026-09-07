@@ -11,8 +11,8 @@ use std::{io::Write, process::Command};
 ///
 /// Returns an error if the graph file cannot be created.
 pub fn generate_graph(matches: &Matches) -> Result<PathBuf> {
-    let graph_path = Path::new("./graph.gv").to_path_buf();
-    let mut graph_file = std::fs::File::create(&graph_path)?;
+    let graph_path = Path::new("./graph.gv");
+    let mut graph_file = std::fs::File::create(graph_path)?;
 
     let edges = matches.0.iter().flat_map(|m| {
         m.shortlist
@@ -36,7 +36,7 @@ pub fn generate_graph(matches: &Matches) -> Result<PathBuf> {
         .arg("-Ecolor=gray40")
         .arg("-Earrowsize=0.6")
         .arg("-Epenwidth=0.8")
-        .arg(&graph_path)
+        .arg(graph_path)
         .arg("-o")
         .arg(&image_path)
         .output()?;

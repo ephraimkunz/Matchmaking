@@ -9,9 +9,10 @@
 #![deny(clippy::print_stderr)]
 
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use itertools::Itertools;
 use matchmaking::Matches;
+use matchmaking::generate_attendance;
 use matchmaking::generate_docx;
 use matchmaking::generate_email;
 use matchmaking::generate_graph;
@@ -24,7 +25,7 @@ use std::path::PathBuf;
 /// Generate shortlists of compatible dating partners, based on input dating questionnaire.
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
-struct Args {
+struct Cli {
     /// What type of output to generate. `PlainText` is used by default if one is not provided.
     #[command(subcommand)]
     output: Option<OutputFormat>,
@@ -103,9 +104,24 @@ enum OutputFormat {
     /// A Graphviz file that visualizes the match relationships named graph.png is created and opened
     Graph,
     /// Output a schedule for one-on-one meetings of people to their matches
+    Schedule(ScheduleArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+struct ScheduleArgs {
+    /// What type of schedule output to generate. `PlainText` is used by default if one is not provided.
+    #[command(subcommand)]
+    output: ScheduleOutput,
+}
+
+#[derive(Debug, Clone, Subcommand)]
+enum ScheduleOutput {
+    /// Outputs a CSV file attendance.csv for taking attendance.
+    Attendance,
+    /// Ouputs a schedule for the activity, taking into account matchmaking and attendance.
     Schedule {
-        /// Path to a JSON file of the form:
-        /// {[{name: string, gender: "M"|"F"}]} that represents all people attending.
+        /// Path to a CSV file where each record contains:
+        /// full name, gender (m / f), attending (true / false)
         /// Anyone on this list but not in `INPUT_FILE` will be considered walk-ins.
         /// Failing to provide this assumes that all those in `INPUT_FILE` are present
         #[arg(long, value_name = "ATTENDANCE_PATH")]
@@ -114,11 +130,11 @@ enum OutputFormat {
 }
 
 fn main() -> Result<()> {
-    let args = Args::parse();
-    run(args, &mut std::io::stdout(), &mut std::io::stderr())
+    let cli = Cli::parse();
+    run(cli, &mut std::io::stdout(), &mut std::io::stderr())
 }
 
-fn run<W1: Write, W2: Write>(args: Args, stdout: &mut W1, stderr: &mut W2) -> Result<()> {
+fn run<W1: Write, W2: Write>(args: Cli, stdout: &mut W1, stderr: &mut W2) -> Result<()> {
     let (matches, diagnostics) = parse_and_generate_matches(
         args.input_file_name,
         args.seed,
@@ -175,10 +191,16 @@ fn run<W1: Write, W2: Write>(args: Args, stdout: &mut W1, stderr: &mut W2) -> Re
             let path = generate_graph(&matches)?;
             open::that(path)?;
         }
-        OutputFormat::Schedule { attendance } => {
-            let schedule = generate_schedule(&matches, attendance.as_deref())?;
-            write!(stdout, "{}\n{}", schedule.stderr, schedule.stdout)?;
-        }
+        OutputFormat::Schedule(attendance) => match attendance.output {
+            ScheduleOutput::Attendance => {
+                let path = generate_attendance(&matches)?;
+                open::that(path)?;
+            }
+            ScheduleOutput::Schedule { attendance } => {
+                let schedule = generate_schedule(&matches, attendance.as_deref())?;
+                write!(stdout, "{}\n{}", schedule.stderr, schedule.stdout)?;
+            }
+        },
     }
 
     if let Some(diag) = diagnostics {
@@ -196,7 +218,7 @@ mod tests {
 
     #[test]
     fn verify_cli() {
-        Args::command().debug_assert();
+        Cli::command().debug_assert();
     }
 
     #[test]
@@ -208,7 +230,7 @@ mod tests {
             "plain-text",
             "--print-scores",
         ];
-        let args = Args::try_parse_from(input).unwrap();
+        let args = Cli::try_parse_from(input).unwrap();
         let mut stdout = vec![];
         let mut stderr = vec![];
         assert!(run(args, &mut stdout, &mut stderr).is_ok());
@@ -230,7 +252,7 @@ mod tests {
             "plain-text",
             "--print-scores",
         ];
-        let args = Args::try_parse_from(input).unwrap();
+        let args = Cli::try_parse_from(input).unwrap();
         let mut stdout = vec![];
         let mut stderr = vec![];
         assert!(run(args, &mut stdout, &mut stderr).is_ok());
@@ -255,7 +277,7 @@ mod tests {
         ];
 
         // try_parse_from returns a Result, preventing test panics
-        let parsed = Args::try_parse_from(input);
+        let parsed = Cli::try_parse_from(input);
 
         assert!(parsed.is_err());
     }
@@ -271,7 +293,7 @@ mod tests {
             "aurora.green@example.com",
             "spencer.morris@example.com",
         ];
-        let args = Args::try_parse_from(input).unwrap();
+        let args = Cli::try_parse_from(input).unwrap();
         let mut stdout = vec![];
         let mut stderr = vec![];
         assert!(run(args, &mut stdout, &mut stderr).is_ok());
@@ -295,7 +317,7 @@ mod tests {
             "abc",
             "def",
         ];
-        let args = Args::try_parse_from(input).unwrap();
+        let args = Cli::try_parse_from(input).unwrap();
         let mut stdout = vec![];
         let mut stderr = vec![];
         let result = run(args, &mut stdout, &mut stderr);
@@ -314,7 +336,7 @@ mod tests {
             "spencer.joe@example.com",
             "spencer.joe_3@example.com",
         ];
-        let args = Args::try_parse_from(input).unwrap();
+        let args = Cli::try_parse_from(input).unwrap();
         let mut stdout = vec![];
         let mut stderr = vec![];
         let result = run(args, &mut stdout, &mut stderr);
@@ -329,7 +351,7 @@ mod tests {
             "plain-text",
             "-p",
         ];
-        let args = Args::try_parse_from(input);
+        let args = Cli::try_parse_from(input);
         assert!(args.is_ok());
     }
 
@@ -343,7 +365,7 @@ mod tests {
                 output,
                 "-p",
             ];
-            let args = Args::try_parse_from(input);
+            let args = Cli::try_parse_from(input);
             assert!(args.is_err());
         }
     }
@@ -357,7 +379,7 @@ mod tests {
             "--template",
             "./test_data/test_email_template.txt",
         ];
-        let args = Args::try_parse_from(input);
+        let args = Cli::try_parse_from(input);
         assert!(args.is_ok());
     }
 
@@ -372,7 +394,7 @@ mod tests {
                 "--email-template",
                 "./test_data/test_email_template.txt",
             ];
-            let args = Args::try_parse_from(input);
+            let args = Cli::try_parse_from(input);
             assert!(args.is_err());
         }
     }
@@ -387,14 +409,14 @@ mod tests {
             "--email-template",
             "./test_data/does_not_exist.txt",
         ];
-        let args = Args::try_parse_from(input);
+        let args = Cli::try_parse_from(input);
         assert!(args.is_err());
     }
 
     #[test]
     fn args_validate_email_output_no_email_template() {
         let input = ["matchmaking", "test_data/many_generated.csv", "-o", "email"];
-        let args = Args::try_parse_from(input);
+        let args = Cli::try_parse_from(input);
         assert!(args.is_err());
     }
 
@@ -409,7 +431,7 @@ mod tests {
             "aurora.green@example.com",
             "spencer.morris@example.com",
         ];
-        let args = Args::try_parse_from(input).unwrap();
+        let args = Cli::try_parse_from(input).unwrap();
         let mut stdout = vec![];
         let mut stderr = vec![];
         assert!(run(args, &mut stdout, &mut stderr).is_ok());

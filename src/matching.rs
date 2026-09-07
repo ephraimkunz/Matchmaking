@@ -50,6 +50,7 @@ impl Matches {
 pub struct MatchCard {
     pub name: String,
     pub email: String,
+    pub gender: Gender,
     pub shortlist: Vec<ShortlistMatch>,
 }
 
@@ -154,6 +155,7 @@ pub fn create_matches(
             MatchCard {
                 name: response.demographics.name.clone(),
                 email: response.demographics.email.clone(),
+                gender: response.demographics.gender.clone(),
                 shortlist: matches
                     .into_iter()
                     .map(|(matched_id, matched_score)| {
@@ -1467,6 +1469,7 @@ mod tests {
             Matches(vec![MatchCard {
                 name: String::new(),
                 email: "example@example.com".to_string(),
+                gender: Gender::Male,
                 shortlist: vec![],
             }],)
         );
@@ -1511,6 +1514,7 @@ mod tests {
                 MatchCard {
                     name: "Candidate A".to_string(),
                     email: "first".to_string(),
+                    gender: Gender::Male,
                     shortlist: vec![ShortlistMatch {
                         name: "Candidate B".to_string(),
                         age: Age(26),
@@ -1522,6 +1526,7 @@ mod tests {
                 MatchCard {
                     name: "Candidate B".to_string(),
                     email: "second".to_string(),
+                    gender: Gender::Female,
                     shortlist: vec![ShortlistMatch {
                         name: "Candidate A".to_string(),
                         age: Age(34),

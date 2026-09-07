@@ -2,7 +2,7 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use itertools::Itertools;
 use rand::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::validation::{validate_ids, validated_email, validated_free_response, validated_name};
 
@@ -242,7 +242,7 @@ impl FiveChoiceWeight {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub enum Gender {
     #[default]
     Male,
